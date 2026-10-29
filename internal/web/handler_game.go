@@ -90,8 +90,8 @@ func (h *GameHandler) handleCreateGame(w http.ResponseWriter, r *http.Request) {
 
 /*
 handleGetAvaibleGames - получение информации о доступных играх
-Method GET /games/
-Query параметры (param?gameState=waitUsers)
+Method GET /games
+Query параметры (?gameState=waitUsers)
 
 Ответ:
 Успешно

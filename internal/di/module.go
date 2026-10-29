@@ -8,24 +8,23 @@ import (
 	"go.uber.org/fx"
 )
 
-// Module - полный граф зависимостей приложения.
+// Module - полный граф зависимостей приложения
 var Module = fx.Options(
 	fx.Provide(
-		newConfig, // сервер с портоми данными для подключения к БД
+		newConfig,
 		func(cfg *Config) string {
 			return cfg.DBDSN
 		},
-		datasource.NewDBPool,         // Создание poll подключения к БД
-		datasource.NewGameRepository, // domain.GameRepository
+		datasource.NewDBPool,
+		datasource.NewGameRepository,
 		datasource.NewUserRepository,
-		domain.NewGameService, // domain.GameService
+		domain.NewGameService,
 		domain.NewUserService,
-		web.NewGameHandler, // *web.GameHandler
+		web.NewGameHandler,
 		web.NewUserHandler,
 		web.NewUserAuthenticator,
-		newMux,    // *http.ServeMux с зарегистрированными маршрутами
-		newServer, // *http.Server с таймаутами
-
+		newMux,
+		newServer,
 	),
 	fx.Invoke(runServer),
 )

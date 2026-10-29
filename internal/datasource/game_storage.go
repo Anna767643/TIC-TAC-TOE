@@ -49,15 +49,17 @@ func NewDBPool(dsn string) (*DBPool, error) {
 	return &DBPool{pool: pool}, nil
 }
 
+// Close -закрывает соединение
 func (db *DBPool) Close() {
 	db.pool.Close()
 }
 
+// GetPool - передает соединение
 func (db *DBPool) GetPool() *pgxpool.Pool {
 	return db.pool
 }
 
-// insertTableGames -добавляет новую игру в таблице games
+// insertTableGames - добавляет новую игру в таблице games
 func (db *DBPool) insertIntoGames(ctx context.Context, game gameEntity) error {
 	sqlQuery := `
 	INSERT INTO games(uuid, board, with_computer, game_state, uuid_player_first, update_at)
@@ -155,6 +157,7 @@ func (db *DBPool) selectFromUsersWithLogin(ctx context.Context, login string) (u
 	return user, nil
 }
 
+// selectFromUsersWithUUID - получение информации об игроке по uuid
 func (db *DBPool) selectFromUsersWithUUID(ctx context.Context, uuidUser uuid.UUID) (userEntity, error) {
 	sqlQuery := `
 	SELECT id, uuid, login, password_hash, create_at from users

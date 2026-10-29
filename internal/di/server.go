@@ -24,12 +24,14 @@ func newConfig() *Config {
 
 }
 
+// newMux - создает новый мультиплексор и регистрирует маршруты
 func newMux(handlerGame *web.GameHandler, handlerUser *web.UserHandler, auth *web.UserAuthenticator) *http.ServeMux {
 	mux := http.NewServeMux()
 	handlerGame.Register(mux, auth, handlerUser)
 	return mux
 }
 
+// newServer - задает данные сервера
 func newServer(cfg *Config, mux *http.ServeMux) *http.Server {
 	return &http.Server{
 		Addr:         cfg.Addr,
@@ -41,7 +43,7 @@ func newServer(cfg *Config, mux *http.ServeMux) *http.Server {
 }
 
 // runServer подключает сервер к жизненному циклу fx:
-// OnStart - net.Listen + Serve в горутине, OnStop - Shutdown(ctx).
+// OnStart - net.Listen + Serve в горутине, OnStop - Shutdown(ctx)
 func runServer(lc fx.Lifecycle, srv *http.Server, db *datasource.DBPool) {
 	lc.Append(fx.Hook{
 		// OnStart выполняется при запуске приложения

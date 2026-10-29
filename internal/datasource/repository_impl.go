@@ -8,23 +8,23 @@ import (
 	uuid "github.com/google/uuid"
 )
 
-// gameRepository - реализация domain.GameRepository поверх gsPool
+// gameRepository - реализация domain.GameRepository поверх gameStorage
 type gameRepository struct {
 	gs gameStorage
 }
 
-// NewGameRepository - конструктор для di.
+// NewGameRepository - конструктор для di
 func NewGameRepository(db *DBPool) domain.GameRepository {
 	return &gameRepository{gs: db}
 }
 
 /*
-SaveNewGame - сохранение новой игры.
+SaveNewGame - сохранение новой игры
 Возвращает новую игру
 Ошибки:
 ErrContextCanceled
 "repository: failed to insert game: error"
-"repository: failed to select game after insert: error"
+ErrGameNotFound
 "repository: failed to map game entity to domain: error"
 */
 func (r *gameRepository) SaveNewGame(ctx context.Context, game domain.Game) (domain.Game, error) {
@@ -41,7 +41,7 @@ func (r *gameRepository) SaveNewGame(ctx context.Context, game domain.Game) (dom
 
 	gameEntity, err = r.gs.selectFromGames(ctx, game.UUID)
 	if err != nil {
-		return domain.Game{}, fmt.Errorf("repository: failed to select game after insert: %w", err)
+		return domain.Game{}, domain.ErrGameNotFound
 	}
 
 	newGame, err := toDomainGame(gameEntity)
@@ -52,8 +52,12 @@ func (r *gameRepository) SaveNewGame(ctx context.Context, game domain.Game) (dom
 	return newGame, err
 }
 
-// Save - сохраняет игру
-// если контекст был закрыт, то возвращает ошибку context.Canceled
+/*
+Save - сохраняет игру
+Ошибки:
+ErrContextCanceled
+"repository: failed to update game: error"
+*/
 func (r *gameRepository) Save(ctx context.Context, game domain.Game) error {
 	if err := ctx.Err(); err != nil {
 		return domain.ErrContextCanceled
@@ -62,14 +66,20 @@ func (r *gameRepository) Save(ctx context.Context, game domain.Game) error {
 	gameEntyti := toEntityGame(game)
 
 	if err := r.gs.updateGames(ctx, gameEntyti); err != nil {
-		return err
+		return fmt.Errorf("repository: failed to update game: %w", err)
 	}
 
 	return nil
 }
 
-// Get срез игр доступных для присоединения игроку с определенным uuid
-// или ошибку context.Canceled, или ошибку от posgreSQL
+/*
+GetAvaibleGames - получение среза доступных игр для присоединения игрока с определенным uuid
+Возвращает срез игр
+Ошибки:
+ErrContextCanceled
+ErrGameNotFound
+"repository: failed to map game entity to domain: error"
+*/
 func (r *gameRepository) GetAvaibleGames(ctx context.Context, uuidUser uuid.UUID) ([]domain.Game, error) {
 	if err := ctx.Err(); err != nil {
 		return []domain.Game{}, domain.ErrContextCanceled
@@ -77,14 +87,14 @@ func (r *gameRepository) GetAvaibleGames(ctx context.Context, uuidUser uuid.UUID
 
 	entityGames, err := r.gs.selectAvaibleGamesFromGames(ctx, uuidUser)
 	if err != nil {
-		return []domain.Game{}, err
+		return []domain.Game{}, domain.ErrGameNotFound
 	}
 
 	domainGames := make([]domain.Game, 0)
 	for i := range entityGames {
 		domainGame, err := toDomainGame(entityGames[i])
 		if err != nil {
-			return []domain.Game{}, err
+			return []domain.Game{}, fmt.Errorf("repository: failed to map game entity to domain: %w", err)
 		}
 		domainGames = append(domainGames, domainGame)
 	}
@@ -92,10 +102,14 @@ func (r *gameRepository) GetAvaibleGames(ctx context.Context, uuidUser uuid.UUID
 	return domainGames, nil
 }
 
-// Get - получает информацию об игре
-// если контекст был закрыт, то возвращает ошибку context.Canceled
-// если репозиторий не найден, то ошибку ErrGameNotFound
-// если id не валидный, то ошибку "невалидный UUID: ..."
+/*
+Get - получает информацию об игре по UUID игры
+Возвращает игру
+Ошибки:
+ErrContextCanceled
+ErrGameNotFound
+"repository: failed to map game entity to domain: error"
+*/
 func (r *gameRepository) Get(ctx context.Context, uuid uuid.UUID) (domain.Game, error) {
 	if err := ctx.Err(); err != nil {
 		return domain.Game{}, domain.ErrContextCanceled
@@ -113,40 +127,50 @@ func (r *gameRepository) Get(ctx context.Context, uuid uuid.UUID) (domain.Game, 
 
 	v, err := toDomainGame(entity)
 	if err != nil {
-		return domain.Game{}, err
+		return domain.Game{}, fmt.Errorf("repository: failed to map game entity to domain: %w", err)
 	}
 
 	return v, nil
 }
 
-// gameRepository - реализация domain.GameRepository поверх Storage.
+// gameRepository - реализация domain.GameRepository поверх gameStorage
 type userRepository struct {
 	gs gameStorage
 }
 
-// NewGameRepository - конструктор для di.
+// NewUserRepository - конструктор для di
 func NewUserRepository(db *DBPool) domain.UserRepository {
 	return &userRepository{gs: db}
 }
 
-// Save сохраняет нового пользователя
-// в случае если пользователь с таким логином уже существует - ошибку
+/*
+Save - сохраняет нового пользователя
+Ошибки:
+ErrContextCanceled
+ErrLoginIncorrect
+*/
 func (u *userRepository) Save(ctx context.Context, user domain.User) error {
 	if err := ctx.Err(); err != nil {
-		return err
+		return domain.ErrContextCanceled
 	}
 
 	userEntity := toUserEntity(user)
 
 	err := u.gs.insertIntoUsers(ctx, userEntity)
 	if err != nil {
-		return err
+		return domain.ErrLoginIncorrect
 	}
 
 	return nil
 }
 
-// Get возвращает данные о пользователе по логину
+/*
+Get - получает данные о пользователе по логину или по UUID
+Возвращает
+Ошибки:
+ErrContextCanceled
+ErrUserNotFound
+*/
 func (u *userRepository) Get(ctx context.Context, login string, uuidUser uuid.UUID) (domain.User, error) {
 	if err := ctx.Err(); err != nil {
 		return domain.User{}, domain.ErrContextCanceled

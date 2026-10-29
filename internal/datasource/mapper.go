@@ -6,7 +6,7 @@ import (
 	"strings"
 )
 
-// toEntity преобразует domain.Game в GameEntity
+// toEntity - преобразует domain.Game в GameEntity
 func toEntityGame(game domain.Game) gameEntity {
 	return gameEntity{
 		UUID:         game.UUID,
@@ -21,7 +21,7 @@ func toEntityGame(game domain.Game) gameEntity {
 	}
 }
 
-// toDomain преобразует GameEntity в domain.Game
+// toDomain - преобразует GameEntity в domain.Game
 // если ID в хранилище не парситься в UUID, то возвращается ошибка
 func toDomainGame(entity gameEntity) (domain.Game, error) {
 
@@ -44,7 +44,7 @@ func toDomainGame(entity gameEntity) (domain.Game, error) {
 	}, nil
 }
 
-// toDomainBoard преобразует строку в domain.Board
+// toDomainBoard - преобразует строку в domain.Board
 // если строка не парситься в int, то возвращается ошибка
 func toDomainBoard(board string) (domain.Board, error) {
 	parts := strings.Split(board, ", ")
@@ -65,8 +65,7 @@ func toDomainBoard(board string) (domain.Board, error) {
 	return dboard, nil
 }
 
-// toEntityBoard преобразует domain.Board в строку
-// если int не парситься в строку, то возвращается ошибка
+// toEntityBoard - преобразует domain.Board в строку
 func toEntityBoard(board domain.Board) string {
 	strArray := make([]string, 9)
 	i := 0
@@ -80,7 +79,7 @@ func toEntityBoard(board domain.Board) string {
 	return result
 }
 
-// toUserEntity преобразует domain.User в userEntity
+// toUserEntity - преобразует domain.User в userEntity
 func toUserEntity(user domain.User) userEntity {
 	return userEntity{
 		UUID:         user.UUID,
@@ -90,8 +89,7 @@ func toUserEntity(user domain.User) userEntity {
 	}
 }
 
-// toDomainUser преобразует userEntity в domain.User
-// если ID в хранилище не парситься в UUID, то возвращается ошибка
+// toDomainUser - преобразует userEntity в domain.User
 func toDomainUser(entity userEntity) domain.User {
 	return domain.User{
 		ID:           entity.ID,
