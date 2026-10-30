@@ -14,7 +14,7 @@ var (
 	ErrContextCanceled    = errors.New("context canceled")                                                   // контекст закрыт
 	ErrOpponentsMove      = errors.New("wait for your opponent's move")                                      // ход оппонента
 	ErrDoesntHaveSuchUser = errors.New("this game doesn't have such a user")                                 // в этой игре нет такого пользователя
-	ErrWaitOpponent       = errors.New("your opponent has not joined the game yet")                          // второй игрок еще не присоеденился к игре
+	ErrWaitOpponent       = errors.New("your opponent has not joined the game yet")                          // второй игрок еще не присоединился к игре
 
 	ErrLoginOrPasswordIncorrect = errors.New("the login or password is incorrect")    // неверный логин или пароль
 	ErrLoginIncorrect           = errors.New("a user with this login already exists") // пользователь с таким логином уже существует

@@ -11,9 +11,9 @@ type GameService interface {
 	// Возвращает информацию о новой игре и ошибку
 	CreateNewGame(ctx context.Context, withComputer bool, uuidUser uuid.UUID) (Game, error)
 
-	// GetAvaibleGames - находит и возвращает все доступные игры
+	// GetAvailableGames - находит и возвращает все доступные игры
 	// для присоединения игрока с определённым UUID, или ошибку
-	GetAvaibleGames(ctx context.Context, uuidUser uuid.UUID) ([]Game, error)
+	GetAvailableGames(ctx context.Context, uuidUser uuid.UUID) ([]Game, error)
 
 	// JoinUser - присоединяет пользователя к игре
 	// В случае успеха возвращает измененную игру
@@ -40,16 +40,6 @@ type GameService interface {
 	// ErrGameNotFound - игра не найдена
 	// ErrDoesntHaveSuchUser - в этой игре нет такого пользователя
 	GetGame(ctx context.Context, uuidGame uuid.UUID, uuidUser uuid.UUID) (Game, error)
-
-	// Validate проверяет, что incoming - допустимое продолжение stored:
-	// все непустые клетки stored не изменились, добавлена ровно одна клетка
-	// и это ход пользователя (X), значения клеток в диапазоне.
-	// Возвращает ErrInvalidBoard или ErrInvalidCell с описанием причины.
-	// Validate(incoming Board, stored Board, playerCellValue int) error
-
-	// IsFinished сообщает, окончена ли игра, и кто победил:
-	// winner = X, O или Empty при ничьей / незавершённой игре.
-	// IsFinished(board Board) (bool, int)
 }
 
 type UserService interface {
@@ -59,9 +49,9 @@ type UserService interface {
 	Register(ctx context.Context, signUpRequest SignUpRequest) (User, error)
 
 	// LogIn - авторизирует пользователя
-	// возвращает UUIDпользователя
+	// возвращает UUID пользователя
 	// или ошибку
-	LogIn(ctx context.Context, signUpRequest SignUpRequest) (string, error)
+	LogIn(ctx context.Context, signUpRequest SignUpRequest) (uuid.UUID, error)
 
 	// GetUserInfo - получение информации о пользователе по UUID пользователя
 	// Возвращает информацию о пользователе

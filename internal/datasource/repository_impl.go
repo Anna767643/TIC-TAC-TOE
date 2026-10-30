@@ -23,8 +23,9 @@ SaveNewGame - сохранение новой игры
 Возвращает новую игру
 Ошибки:
 ErrContextCanceled
-"repository: failed to insert game: error"
+"repository: insert game %s: %w"
 ErrGameNotFound
+"repository: select game %s: %w"
 "repository: failed to map game entity to domain: error"
 */
 func (r *gameRepository) SaveNewGame(ctx context.Context, game domain.Game) (domain.Game, error) {
@@ -36,12 +37,12 @@ func (r *gameRepository) SaveNewGame(ctx context.Context, game domain.Game) (dom
 
 	err := r.gs.insertIntoGames(ctx, gameEntity)
 	if err != nil {
-		return domain.Game{}, fmt.Errorf("repository: failed to insert game: %w", err)
+		return domain.Game{}, err
 	}
 
 	gameEntity, err = r.gs.selectFromGames(ctx, game.UUID)
 	if err != nil {
-		return domain.Game{}, domain.ErrGameNotFound
+		return domain.Game{}, err
 	}
 
 	newGame, err := toDomainGame(gameEntity)
@@ -56,38 +57,38 @@ func (r *gameRepository) SaveNewGame(ctx context.Context, game domain.Game) (dom
 Save - сохраняет игру
 Ошибки:
 ErrContextCanceled
-"repository: failed to update game: error"
+"repository: update game %s: %w"
 */
 func (r *gameRepository) Save(ctx context.Context, game domain.Game) error {
 	if err := ctx.Err(); err != nil {
 		return domain.ErrContextCanceled
 	}
 
-	gameEntyti := toEntityGame(game)
+	gameEntity := toEntityGame(game)
 
-	if err := r.gs.updateGames(ctx, gameEntyti); err != nil {
-		return fmt.Errorf("repository: failed to update game: %w", err)
+	if err := r.gs.updateGames(ctx, gameEntity); err != nil {
+		return err
 	}
 
 	return nil
 }
 
 /*
-GetAvaibleGames - получение среза доступных игр для присоединения игрока с определенным uuid
+GetAvailableGames - получение среза доступных игр для присоединения игрока с определенным uuid
 Возвращает срез игр
 Ошибки:
 ErrContextCanceled
-ErrGameNotFound
-"repository: failed to map game entity to domain: error"
+"repository: select game for user %s: %w"
+"repository: scan game for user %s: %w"
 */
-func (r *gameRepository) GetAvaibleGames(ctx context.Context, uuidUser uuid.UUID) ([]domain.Game, error) {
+func (r *gameRepository) GetAvailableGames(ctx context.Context, uuidUser uuid.UUID) ([]domain.Game, error) {
 	if err := ctx.Err(); err != nil {
 		return []domain.Game{}, domain.ErrContextCanceled
 	}
 
 	entityGames, err := r.gs.selectAvaibleGamesFromGames(ctx, uuidUser)
 	if err != nil {
-		return []domain.Game{}, domain.ErrGameNotFound
+		return []domain.Game{}, err
 	}
 
 	domainGames := make([]domain.Game, 0)
@@ -108,7 +109,7 @@ Get - получает информацию об игре по UUID игры
 Ошибки:
 ErrContextCanceled
 ErrGameNotFound
-"repository: failed to map game entity to domain: error"
+"repository: select game %s: %w"
 */
 func (r *gameRepository) Get(ctx context.Context, uuid uuid.UUID) (domain.Game, error) {
 	if err := ctx.Err(); err != nil {
@@ -122,7 +123,7 @@ func (r *gameRepository) Get(ctx context.Context, uuid uuid.UUID) (domain.Game, 
 
 	entity, err = r.gs.selectFromGames(ctx, uuid)
 	if err != nil {
-		return domain.Game{}, domain.ErrGameNotFound
+		return domain.Game{}, err
 	}
 
 	v, err := toDomainGame(entity)
@@ -148,6 +149,7 @@ Save - сохраняет нового пользователя
 Ошибки:
 ErrContextCanceled
 ErrLoginIncorrect
+"repository: insert user with %s: %w"
 */
 func (u *userRepository) Save(ctx context.Context, user domain.User) error {
 	if err := ctx.Err(); err != nil {
@@ -158,7 +160,7 @@ func (u *userRepository) Save(ctx context.Context, user domain.User) error {
 
 	err := u.gs.insertIntoUsers(ctx, userEntity)
 	if err != nil {
-		return domain.ErrLoginIncorrect
+		return err
 	}
 
 	return nil
@@ -170,6 +172,7 @@ Get - получает данные о пользователе по логин�
 Ошибки:
 ErrContextCanceled
 ErrUserNotFound
+"repository: select user with %s: %w"
 */
 func (u *userRepository) Get(ctx context.Context, login string, uuidUser uuid.UUID) (domain.User, error) {
 	if err := ctx.Err(); err != nil {
@@ -184,12 +187,12 @@ func (u *userRepository) Get(ctx context.Context, login string, uuidUser uuid.UU
 	if login != "" {
 		userEntity, err = u.gs.selectFromUsersWithLogin(ctx, login)
 		if err != nil {
-			return domain.User{}, domain.ErrUserNotFound
+			return domain.User{}, err
 		}
 	} else {
 		userEntity, err = u.gs.selectFromUsersWithUUID(ctx, uuidUser)
 		if err != nil {
-			return domain.User{}, domain.ErrUserNotFound
+			return domain.User{}, err
 		}
 	}
 

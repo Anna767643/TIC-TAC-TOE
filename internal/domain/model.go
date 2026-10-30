@@ -8,8 +8,8 @@ import (
 
 // Значение клетки поля
 const (
-	X     = 1 // Ход игрока
-	O     = 2 // Ход компьютера
+	X     = 1 // Ход первого игрока
+	O     = 2 // Ход второго игрока
 	Empty = 0 // Пустая клетка
 )
 
@@ -21,11 +21,13 @@ const Size = 3
 type Board [Size][Size]int
 
 // Поля Game.GameState
-var (
-	WaitUsers = "wait users"
-	NextMove  = "next move user " // + UUID user
-	Draw      = "draw"
-	Win       = "win user " // + UUID user
+type GameState string
+
+const (
+	StateWaitUsers GameState = "wait users"
+	StateNextMove  GameState = "next move"
+	StateDraw      GameState = "draw"
+	StateWin       GameState = "win"
 )
 
 // Game - текущая игра: идентификатор и состояние поля.
@@ -34,7 +36,9 @@ type Game struct {
 	UUID         uuid.UUID
 	Board        Board
 	WithComputer bool
-	GameState    string
+	State        GameState
+	NextPlayer   *uuid.UUID // кто ходит, когда State == StateNextMove
+	Winner       *uuid.UUID // nil при победе компьютера
 
 	UUIDPlayerFirst  uuid.UUID
 	UUIDPlayerSecond *uuid.UUID

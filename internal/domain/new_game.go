@@ -14,9 +14,9 @@ func (s *gameService) CreateNewGame(ctx context.Context, withComputer bool, uuid
 		return Game{}, ErrContextCanceled
 	}
 
-	gameState := NextMove + uuidUser.String()
+	state := StateNextMove
 	if !withComputer {
-		gameState = WaitUsers
+		state = StateWaitUsers
 	}
 
 	game := Game{
@@ -27,7 +27,7 @@ func (s *gameService) CreateNewGame(ctx context.Context, withComputer bool, uuid
 			{0, 0, 0},
 		},
 		WithComputer:    withComputer,
-		GameState:       gameState,
+		State:           state,
 		UUIDPlayerFirst: uuidUser,
 
 		UpdatedAt: time.Now(),
@@ -40,14 +40,14 @@ func (s *gameService) CreateNewGame(ctx context.Context, withComputer bool, uuid
 	return newGame, nil
 }
 
-// GetAvaibleGames - находит и возвращает все доступные игры
+// GetAvailableGames - находит и возвращает все доступные игры
 // для присоединения игрока с определённым UUID, или ошибку
-func (s *gameService) GetAvaibleGames(ctx context.Context, uuidUser uuid.UUID) ([]Game, error) {
+func (s *gameService) GetAvailableGames(ctx context.Context, uuidUser uuid.UUID) ([]Game, error) {
 	if err := ctx.Err(); err != nil {
 		return []Game{}, ErrContextCanceled
 	}
 
-	games, err := s.repo.GetAvaibleGames(ctx, uuidUser)
+	games, err := s.repo.GetAvailableGames(ctx, uuidUser)
 	if err != nil {
 		return []Game{}, err
 	}
@@ -70,20 +70,20 @@ func (s *gameService) JoinUser(ctx context.Context, uuidUser uuid.UUID, uuidGame
 	}
 
 	// ErrAddUser
-	if game.GameState != WaitUsers ||
+	if game.State != StateWaitUsers ||
 		game.UUIDPlayerSecond != nil ||
-		game.WithComputer != false ||
+		game.WithComputer ||
 		game.UUIDPlayerFirst == uuidUser {
 		return Game{}, ErrAddUser
 	}
 
-	game.GameState = NextMove + game.UUIDPlayerFirst.String()
+	game.State = StateNextMove
+	game.NextPlayer = &game.UUIDPlayerFirst
 	game.UUIDPlayerSecond = &uuidUser
 	game.UpdatedAt = time.Now()
 
-	// не обновляется если второй игрок с таким же ID
 	if err := s.repo.Save(ctx, game); err != nil {
-		return Game{}, ErrAddUser
+		return Game{}, err
 	}
 
 	newGame, err := s.repo.Get(ctx, uuidGame)

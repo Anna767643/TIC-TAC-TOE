@@ -12,7 +12,9 @@ func toEntityGame(game domain.Game) gameEntity {
 		UUID:         game.UUID,
 		Board:        toEntityBoard(game.Board),
 		WithComputer: game.WithComputer,
-		GameState:    game.GameState,
+		State:        game.State,
+		NextPlayer:   game.NextPlayer,
+		Winner:       game.Winner,
 
 		UUIDPlayerFirst:  game.UUIDPlayerFirst,
 		UUIDPlayerSecond: game.UUIDPlayerSecond,
@@ -35,7 +37,9 @@ func toDomainGame(entity gameEntity) (domain.Game, error) {
 		UUID:         entity.UUID,
 		Board:        dboard,
 		WithComputer: entity.WithComputer,
-		GameState:    entity.GameState,
+		State:        entity.State,
+		NextPlayer:   entity.NextPlayer,
+		Winner:       entity.Winner,
 
 		UUIDPlayerFirst:  entity.UUIDPlayerFirst,
 		UUIDPlayerSecond: entity.UUIDPlayerSecond,

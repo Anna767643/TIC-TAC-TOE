@@ -12,8 +12,9 @@ type GameRepository interface {
 		Возвращает новую игру
 		Ошибки:
 		ErrContextCanceled
-		"repository: failed to insert game: error"
+		"repository: insert game %s: %w"
 		ErrGameNotFound
+		"repository: select game %s: %w"
 		"repository: failed to map game entity to domain: error"
 	*/
 	SaveNewGame(ctx context.Context, game Game) (Game, error)
@@ -22,19 +23,19 @@ type GameRepository interface {
 		Save - сохраняет игру
 		Ошибки:
 		ErrContextCanceled
-		"repository: failed to update game: error"
+		"repository: update game %s: %w"
 	*/
 	Save(ctx context.Context, game Game) error
 
 	/*
-		GetAvaibleGames - получение среза доступных игр для присоединения игрока с определенным uuid
+		GetAvailableGames - получение среза доступных игр для присоединения игрока с определенным uuid
 		Возвращает срез игр
 		Ошибки:
 		ErrContextCanceled
-		ErrGameNotFound
-		"repository: failed to map game entity to domain: error"
+		"repository: select game for user %s: %w"
+		"repository: scan game for user %s: %w"
 	*/
-	GetAvaibleGames(ctx context.Context, uuidUser uuid.UUID) ([]Game, error)
+	GetAvailableGames(ctx context.Context, uuidUser uuid.UUID) ([]Game, error)
 
 	/*
 		Get - получает информацию об игре по UUID игры
@@ -42,7 +43,7 @@ type GameRepository interface {
 		Ошибки:
 		ErrContextCanceled
 		ErrGameNotFound
-		"repository: failed to map game entity to domain: error"
+		"repository: select game %s: %w"
 	*/
 	Get(ctx context.Context, uuid uuid.UUID) (Game, error)
 }
@@ -54,6 +55,7 @@ type UserRepository interface {
 		Ошибки:
 		ErrContextCanceled
 		ErrLoginIncorrect
+		"repository: insert user with %s: %w"
 	*/
 	Save(ctx context.Context, user User) error
 
@@ -63,6 +65,7 @@ type UserRepository interface {
 		Ошибки:
 		ErrContextCanceled
 		ErrUserNotFound
+		"repository: select user with %s: %w"
 	*/
 	Get(ctx context.Context, login string, uuidUser uuid.UUID) (User, error)
 }

@@ -67,6 +67,7 @@ func TestSaveNewGame(t *testing.T) {
 		testName     string
 		setupMock    func(*mockGameStorage)
 		expectedGame domain.Game
+		cancelCtx    bool
 		expectedErr  error
 	}{
 		{
@@ -80,7 +81,7 @@ func TestSaveNewGame(t *testing.T) {
 						UUID:             uuidGame,
 						Board:            "0, 0, 0, 0, 0, 0, 0, 0, 0",
 						WithComputer:     true,
-						GameState:        domain.WaitUsers,
+						State:            domain.StateWaitUsers,
 						UUIDPlayerFirst:  uuidUser,
 						UUIDPlayerSecond: nil,
 						UpdatedAt:        updatedAt,
@@ -95,7 +96,7 @@ func TestSaveNewGame(t *testing.T) {
 					{0, 0, 0},
 				},
 				WithComputer:     true,
-				GameState:        domain.WaitUsers,
+				State:            domain.StateWaitUsers,
 				UUIDPlayerFirst:  uuidUser,
 				UUIDPlayerSecond: nil,
 				UpdatedAt:        updatedAt,
@@ -113,7 +114,7 @@ func TestSaveNewGame(t *testing.T) {
 						UUID:             uuidGame,
 						Board:            "0, 0, 0, 0, 0, 0, 0, 0, 0",
 						WithComputer:     true,
-						GameState:        domain.WaitUsers,
+						State:            domain.StateWaitUsers,
 						UUIDPlayerFirst:  uuidUser,
 						UUIDPlayerSecond: nil,
 						UpdatedAt:        updatedAt,
@@ -130,14 +131,28 @@ func TestSaveNewGame(t *testing.T) {
 					return nil
 				}
 				m.selectFromGamesFunc = func(ctx context.Context, uuid uuid.UUID) (gameEntity, error) {
-					return gameEntity{}, errors.New("some error")
+					return gameEntity{}, domain.ErrGameNotFound
 				}
 			},
 			expectedGame: domain.Game{},
 			expectedErr:  domain.ErrGameNotFound,
 		},
 		{
-			testName: "ErrContextCanceled",
+			testName: "Error to select",
+			setupMock: func(m *mockGameStorage) {
+				m.insertIntoGamesFunc = func(ctx context.Context, game gameEntity) error {
+					return nil
+				}
+				m.selectFromGamesFunc = func(ctx context.Context, uuid uuid.UUID) (gameEntity, error) {
+					return gameEntity{}, errors.New("some error")
+				}
+			},
+			expectedGame: domain.Game{},
+			expectedErr:  errors.New("some error"),
+		},
+		{
+			testName:  "ErrContextCanceled",
+			cancelCtx: true,
 			setupMock: func(m *mockGameStorage) {
 				m.insertIntoGamesFunc = func(ctx context.Context, game gameEntity) error {
 					return nil
@@ -147,7 +162,7 @@ func TestSaveNewGame(t *testing.T) {
 						UUID:             uuidGame,
 						Board:            "0, 0, 0, 0, 0, 0, 0, 0, 0",
 						WithComputer:     true,
-						GameState:        domain.WaitUsers,
+						State:            domain.StateWaitUsers,
 						UUIDPlayerFirst:  uuidUser,
 						UUIDPlayerSecond: nil,
 						UpdatedAt:        updatedAt,
@@ -161,8 +176,9 @@ func TestSaveNewGame(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.testName, func(t *testing.T) {
 			ctx, cancel := context.WithCancel(context.Background())
+			t.Parallel()
 
-			if tc.testName == "ErrContextCanceled" {
+			if tc.cancelCtx {
 				cancel()
 			} else {
 				defer cancel()
@@ -201,6 +217,7 @@ func TestSaveGame(t *testing.T) {
 	testCases := []struct {
 		testName    string
 		setupMock   func(*mockGameStorage)
+		cancelCtx   bool
 		expectedErr error
 	}{
 		{
@@ -222,7 +239,8 @@ func TestSaveGame(t *testing.T) {
 			expectedErr: errors.New("some error"),
 		},
 		{
-			testName: "ErrContextCanceled",
+			testName:  "ErrContextCanceled",
+			cancelCtx: true,
 			setupMock: func(m *mockGameStorage) {
 				m.updateGamesFunc = func(ctx context.Context, game gameEntity) error {
 					return nil
@@ -234,8 +252,9 @@ func TestSaveGame(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.testName, func(t *testing.T) {
 			ctx, cancel := context.WithCancel(context.Background())
+			t.Parallel()
 
-			if tc.testName == "ErrContextCanceled" {
+			if tc.cancelCtx {
 				cancel()
 			} else {
 				defer cancel()
@@ -263,7 +282,7 @@ func TestSaveGame(t *testing.T) {
 	}
 }
 
-func TestGetAvaibleGames(t *testing.T) {
+func TestGetAvailableGames(t *testing.T) {
 	uuidGame := uuid.New()
 	uuidUser := uuid.New()
 	updatedAt := time.Now()
@@ -272,6 +291,7 @@ func TestGetAvaibleGames(t *testing.T) {
 		testName      string
 		setupMock     func(*mockGameStorage)
 		expectedGames []domain.Game
+		cancelCtx     bool
 		expectedErr   error
 	}{
 		{
@@ -283,7 +303,7 @@ func TestGetAvaibleGames(t *testing.T) {
 							UUID:             uuidGame,
 							Board:            "0, 0, 0, 0, 0, 0, 0, 0, 0",
 							WithComputer:     false,
-							GameState:        domain.WaitUsers,
+							State:            domain.StateWaitUsers,
 							UUIDPlayerFirst:  uuidUser,
 							UUIDPlayerSecond: nil,
 							UpdatedAt:        updatedAt,
@@ -300,7 +320,7 @@ func TestGetAvaibleGames(t *testing.T) {
 						{0, 0, 0},
 					},
 					WithComputer:     false,
-					GameState:        domain.WaitUsers,
+					State:            domain.StateWaitUsers,
 					UUIDPlayerFirst:  uuidUser,
 					UUIDPlayerSecond: nil,
 					UpdatedAt:        updatedAt,
@@ -309,17 +329,18 @@ func TestGetAvaibleGames(t *testing.T) {
 			expectedErr: nil,
 		},
 		{
-			testName: "ErrGameNotFound",
+			testName: "Error select",
 			setupMock: func(m *mockGameStorage) {
 				m.selectAvaibleGamesFromGamesFunc = func(ctx context.Context, uuidUser uuid.UUID) ([]gameEntity, error) {
 					return []gameEntity{}, errors.New("some error")
 				}
 			},
 			expectedGames: []domain.Game{},
-			expectedErr:   domain.ErrGameNotFound,
+			expectedErr:   errors.New("some error"),
 		},
 		{
-			testName: "ErrContextCanceled",
+			testName:  "ErrContextCanceled",
+			cancelCtx: true,
 			setupMock: func(m *mockGameStorage) {
 				m.selectAvaibleGamesFromGamesFunc = func(ctx context.Context, uuidUser uuid.UUID) ([]gameEntity, error) {
 					return []gameEntity{
@@ -327,7 +348,7 @@ func TestGetAvaibleGames(t *testing.T) {
 							UUID:             uuidGame,
 							Board:            "0, 0, 0, 0, 0, 0, 0, 0, 0",
 							WithComputer:     false,
-							GameState:        domain.WaitUsers,
+							State:            domain.StateWaitUsers,
 							UUIDPlayerFirst:  uuidUser,
 							UUIDPlayerSecond: nil,
 							UpdatedAt:        updatedAt,
@@ -344,7 +365,7 @@ func TestGetAvaibleGames(t *testing.T) {
 						{0, 0, 0},
 					},
 					WithComputer:     false,
-					GameState:        domain.WaitUsers,
+					State:            domain.StateWaitUsers,
 					UUIDPlayerFirst:  uuidUser,
 					UUIDPlayerSecond: nil,
 					UpdatedAt:        updatedAt,
@@ -356,8 +377,9 @@ func TestGetAvaibleGames(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.testName, func(t *testing.T) {
 			ctx, cancel := context.WithCancel(context.Background())
+			t.Parallel()
 
-			if tc.testName == "ErrContextCanceled" {
+			if tc.cancelCtx {
 				cancel()
 			} else {
 				defer cancel()
@@ -370,15 +392,15 @@ func TestGetAvaibleGames(t *testing.T) {
 				gs: mock,
 			}
 
-			games, err := gr.GetAvaibleGames(ctx, uuidUser)
+			games, err := gr.GetAvailableGames(ctx, uuidUser)
 
-			if tc.expectedErr == domain.ErrContextCanceled || tc.expectedErr == domain.ErrGameNotFound {
+			if tc.expectedErr == domain.ErrContextCanceled {
 				if !errors.Is(err, tc.expectedErr) {
-					t.Errorf("gr.GetAvaibleGames() get error %v, but want %v", err, tc.expectedErr)
+					t.Errorf("gr.GetAvailableGames() get error %v, but want %v", err, tc.expectedErr)
 					return
 				}
 			} else if (err != nil) != (tc.expectedErr != nil) {
-				t.Errorf("gr.GetAvaibleGames() get error %v, but want %v", err, tc.expectedErr)
+				t.Errorf("gr.GetAvailableGames() get error %v, but want %v", err, tc.expectedErr)
 				return
 			}
 
@@ -402,6 +424,7 @@ func TestGetGame(t *testing.T) {
 		testName     string
 		setupMock    func(*mockGameStorage)
 		expectedGame domain.Game
+		cancelCtx    bool
 		expectedErr  error
 	}{
 		{
@@ -412,7 +435,7 @@ func TestGetGame(t *testing.T) {
 						UUID:             uuid,
 						Board:            "0, 0, 0, 0, 0, 0, 0, 0, 0",
 						WithComputer:     false,
-						GameState:        domain.WaitUsers,
+						State:            domain.StateWaitUsers,
 						UUIDPlayerFirst:  uuidUser,
 						UUIDPlayerSecond: nil,
 						UpdatedAt:        updatedAt,
@@ -427,7 +450,7 @@ func TestGetGame(t *testing.T) {
 					{0, 0, 0},
 				},
 				WithComputer:     false,
-				GameState:        domain.WaitUsers,
+				State:            domain.StateWaitUsers,
 				UUIDPlayerFirst:  uuidUser,
 				UUIDPlayerSecond: nil,
 				UpdatedAt:        updatedAt,
@@ -438,21 +461,32 @@ func TestGetGame(t *testing.T) {
 			testName: "ErrGameNotFound",
 			setupMock: func(m *mockGameStorage) {
 				m.selectFromGamesFunc = func(ctx context.Context, uuid uuid.UUID) (gameEntity, error) {
-					return gameEntity{}, errors.New("some error")
+					return gameEntity{}, domain.ErrGameNotFound
 				}
 			},
 			expectedGame: domain.Game{},
 			expectedErr:  domain.ErrGameNotFound,
 		},
 		{
-			testName: "ErrContextCanceled",
+			testName: "Error select",
+			setupMock: func(m *mockGameStorage) {
+				m.selectFromGamesFunc = func(ctx context.Context, uuid uuid.UUID) (gameEntity, error) {
+					return gameEntity{}, errors.New("some error")
+				}
+			},
+			expectedGame: domain.Game{},
+			expectedErr:  errors.New("some error"),
+		},
+		{
+			testName:  "ErrContextCanceled",
+			cancelCtx: true,
 			setupMock: func(m *mockGameStorage) {
 				m.selectFromGamesFunc = func(ctx context.Context, uuid uuid.UUID) (gameEntity, error) {
 					return gameEntity{
 						UUID:             uuid,
 						Board:            "0, 0, 0, 0, 0, 0, 0, 0, 0",
 						WithComputer:     false,
-						GameState:        domain.WaitUsers,
+						State:            domain.StateWaitUsers,
 						UUIDPlayerFirst:  uuidUser,
 						UUIDPlayerSecond: nil,
 						UpdatedAt:        updatedAt,
@@ -467,7 +501,8 @@ func TestGetGame(t *testing.T) {
 					{0, 0, 0},
 				},
 				WithComputer:     false,
-				GameState:        domain.WaitUsers,
+				State:            domain.StateWaitUsers,
+				NextPlayer:       &uuidUser,
 				UUIDPlayerFirst:  uuidUser,
 				UUIDPlayerSecond: nil,
 				UpdatedAt:        updatedAt,
@@ -478,8 +513,9 @@ func TestGetGame(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.testName, func(t *testing.T) {
 			ctx, cancel := context.WithCancel(context.Background())
+			t.Parallel()
 
-			if tc.testName == "ErrContextCanceled" {
+			if tc.cancelCtx {
 				cancel()
 			} else {
 				defer cancel()
@@ -522,6 +558,7 @@ func TestSaveUser(t *testing.T) {
 		testName    string
 		setupMock   func(*mockGameStorage)
 		user        domain.User
+		cancelCtx   bool
 		expectedErr error
 	}{
 		{
@@ -540,17 +577,28 @@ func TestSaveUser(t *testing.T) {
 			expectedErr: nil,
 		},
 		{
-			testName: "ErrLoginIncorrect",
+			testName: "Error insert",
 			setupMock: func(m *mockGameStorage) {
 				m.insertIntoUsersFunc = func(ctx context.Context, user userEntity) error {
 					return errors.New("some error")
 				}
 			},
 			user:        domain.User{},
+			expectedErr: errors.New("some error"),
+		},
+		{
+			testName: "ErrLoginIncorrect",
+			setupMock: func(m *mockGameStorage) {
+				m.insertIntoUsersFunc = func(ctx context.Context, user userEntity) error {
+					return domain.ErrLoginIncorrect
+				}
+			},
+			user:        domain.User{},
 			expectedErr: domain.ErrLoginIncorrect,
 		},
 		{
-			testName: "ErrContextCanceled",
+			testName:  "ErrContextCanceled",
+			cancelCtx: true,
 			setupMock: func(m *mockGameStorage) {
 				m.insertIntoUsersFunc = func(ctx context.Context, user userEntity) error {
 					return nil
@@ -568,8 +616,9 @@ func TestSaveUser(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.testName, func(t *testing.T) {
 			ctx, cancel := context.WithCancel(context.Background())
+			t.Parallel()
 
-			if tc.testName == "ErrContextCanceled" {
+			if tc.cancelCtx {
 				cancel()
 			} else {
 				defer cancel()
@@ -609,6 +658,7 @@ func TestGetUser(t *testing.T) {
 		login        string
 		uuid         uuid.UUID
 		expectedUser domain.User
+		cancelCtx    bool
 		expectedErr  error
 	}{
 		{
@@ -667,7 +717,7 @@ func TestGetUser(t *testing.T) {
 			testName: "ErrUserNotFound with login",
 			setupMock: func(m *mockGameStorage) {
 				m.selectFromUsersWithLoginFunc = func(ctx context.Context, login string) (userEntity, error) {
-					return userEntity{}, errors.New("some error")
+					return userEntity{}, domain.ErrUserNotFound
 				}
 				m.selectFromUsersWithUUIDFunc = func(ctx context.Context, uuidUser uuid.UUID) (userEntity, error) {
 					return userEntity{}, nil
@@ -678,7 +728,35 @@ func TestGetUser(t *testing.T) {
 			expectedErr:  domain.ErrUserNotFound,
 		},
 		{
+			testName: "Error select with login",
+			setupMock: func(m *mockGameStorage) {
+				m.selectFromUsersWithLoginFunc = func(ctx context.Context, login string) (userEntity, error) {
+					return userEntity{}, errors.New("some error")
+				}
+				m.selectFromUsersWithUUIDFunc = func(ctx context.Context, uuidUser uuid.UUID) (userEntity, error) {
+					return userEntity{}, nil
+				}
+			},
+			login:        loginAnna,
+			expectedUser: domain.User{},
+			expectedErr:  errors.New("some error"),
+		},
+		{
 			testName: "ErrUserNotFound with uuid",
+			setupMock: func(m *mockGameStorage) {
+				m.selectFromUsersWithLoginFunc = func(ctx context.Context, login string) (userEntity, error) {
+					return userEntity{}, nil
+				}
+				m.selectFromUsersWithUUIDFunc = func(ctx context.Context, uuidUser uuid.UUID) (userEntity, error) {
+					return userEntity{}, domain.ErrUserNotFound
+				}
+			},
+			uuid:         uuidUser,
+			expectedUser: domain.User{},
+			expectedErr:  domain.ErrUserNotFound,
+		},
+		{
+			testName: "Error select with uuid",
 			setupMock: func(m *mockGameStorage) {
 				m.selectFromUsersWithLoginFunc = func(ctx context.Context, login string) (userEntity, error) {
 					return userEntity{}, nil
@@ -689,10 +767,11 @@ func TestGetUser(t *testing.T) {
 			},
 			uuid:         uuidUser,
 			expectedUser: domain.User{},
-			expectedErr:  domain.ErrUserNotFound,
+			expectedErr:  errors.New("some error"),
 		},
 		{
-			testName: "ErrContextCanceled",
+			testName:  "ErrContextCanceled",
+			cancelCtx: true,
 			setupMock: func(m *mockGameStorage) {
 				m.selectFromUsersWithLoginFunc = func(ctx context.Context, login string) (userEntity, error) {
 					return userEntity{}, nil
@@ -721,8 +800,9 @@ func TestGetUser(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.testName, func(t *testing.T) {
 			ctx, cancel := context.WithCancel(context.Background())
+			t.Parallel()
 
-			if tc.testName == "ErrContextCanceled" {
+			if tc.cancelCtx {
 				cancel()
 			} else {
 				defer cancel()

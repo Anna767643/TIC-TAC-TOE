@@ -1,7 +1,6 @@
 APP_DIR = cmd/app/
-PACKAGES := ./internal/datasource ./internal/domain ./internal/web
-
-make: 
+PACKAGES := ./internal/...
+run: 
 	go run $(APP_DIR)main.go 
 
 test: 
@@ -15,7 +14,16 @@ test_html:
 	go tool cover -html coverage.txt -o index.html
 	open index.html
 
+test_analiz:
+# 	Потенциальные ошибки
+	go vet ./...
+# 	Ревью кода
+	golangci-lint run ./...
+# 	Актуальность mod
+	go mod tidy -diff
+# 	Проверка на гонки, долго обрабатывается
+	go test -race -cover ./...
+
 clean:
-	rm index.html
-	rm coverage.txt
+	rm -f index.html coverage.txt
 

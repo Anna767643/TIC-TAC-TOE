@@ -13,9 +13,9 @@ func TestToDomainBoard(t *testing.T) {
 		{0, 1, 0},
 	}
 
-	boastStr := "0, 0, 2, 1, 0, 0, 0, 1, 0"
+	boardStr := "0, 0, 2, 1, 0, 0, 0, 1, 0"
 
-	dboard, err := toDomainBoard(boastStr)
+	dboard, err := toDomainBoard(boardStr)
 	if err != nil {
 		t.Errorf("ToDomainBoard() get error %v, want not error", err)
 		return
@@ -27,9 +27,9 @@ func TestToDomainBoard(t *testing.T) {
 }
 
 func TestToDomainBoardError(t *testing.T) {
-	boastStr := "0, 0, 2, 1, 0, u, 0, 1, 0"
+	boardStr := "0, 0, 2, 1, 0, u, 0, 1, 0"
 
-	_, err := toDomainBoard(boastStr)
+	_, err := toDomainBoard(boardStr)
 	if err == nil {
 		t.Errorf("toDomainBoard() get error %v, want error", err)
 		return

@@ -14,7 +14,7 @@ const (
 	userUUIDKey contextKey = "userUUID"
 )
 
-// UserAuthenticator - защита от неовторизованных запросов
+// UserAuthenticator - защита от неавторизованных запросов
 type UserAuthenticator struct {
 	userService domain.UserService
 }

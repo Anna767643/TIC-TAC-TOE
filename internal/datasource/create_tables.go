@@ -15,7 +15,7 @@ func CreateTableUsers(ctx context.Context, pool *pgxpool.Pool) error {
 	uuid UUID NOT NULL UNIQUE,
 	login VARCHAR(255) NOT NULL UNIQUE,
 	password_hash VARCHAR(255) NOT NULL,
-	create_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+	create_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
 	);
 	`
 
@@ -33,12 +33,14 @@ func CreateTableGames(ctx context.Context, pool *pgxpool.Pool) error {
 	uuid UUID NOT NULL UNIQUE,
 	board VARCHAR(255) NOT NULL,
 	with_computer BOOLEAN NOT NULL DEFAULT FALSE,
-	game_state VARCHAR(255) NOT NULL,
+	state VARCHAR(16) NOT NULL,
+	next_player UUID,
+	winner UUID,
 
 	uuid_player_first UUID NOT NULL,
 	uuid_player_second UUID,
 
-	update_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+	update_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
 
 	FOREIGN KEY (uuid_player_first) REFERENCES users (uuid),
 	FOREIGN KEY (uuid_player_second) REFERENCES users (uuid)

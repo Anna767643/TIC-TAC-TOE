@@ -45,21 +45,21 @@ func (u *userService) Register(ctx context.Context, signUpRequest SignUpRequest)
 // LogIn - авторизирует пользователя
 // возвращает UUIDпользователя
 // или ошибку
-func (u *userService) LogIn(ctx context.Context, signUpRequest SignUpRequest) (string, error) {
+func (u *userService) LogIn(ctx context.Context, signUpRequest SignUpRequest) (uuid.UUID, error) {
 	if err := ctx.Err(); err != nil {
-		return "", ErrContextCanceled
+		return uuid.UUID{}, ErrContextCanceled
 	}
 
 	user, err := u.repo.Get(ctx, signUpRequest.Login, uuid.UUID{})
 	if err != nil {
-		return "", ErrLoginOrPasswordIncorrect
+		return uuid.UUID{}, ErrLoginOrPasswordIncorrect
 	}
 
 	if err := bcrypt.CompareHashAndPassword([]byte(user.PasswordHash), []byte(signUpRequest.Password)); err != nil {
-		return "", ErrLoginOrPasswordIncorrect
+		return uuid.UUID{}, ErrLoginOrPasswordIncorrect
 	}
 
-	return user.UUID.String(), nil
+	return user.UUID, nil
 }
 
 func (u *userService) GetUserInfo(ctx context.Context, uuidUser uuid.UUID) (User, error) {

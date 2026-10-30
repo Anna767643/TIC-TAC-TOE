@@ -12,7 +12,7 @@ package datasource
 // 	"github.com/jackc/pgx/v5"
 // )
 
-// // ---- GAMES ----
+// // ------------- GAMES -------------
 // // func TestPutGame(t *testing.T) {
 // // 	db, err := NewDBPool("postgres://postgres:12345@localhost:5432/tic_tac_toe")
 // // 	if err != nil {

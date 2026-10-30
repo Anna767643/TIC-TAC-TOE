@@ -2,7 +2,6 @@ package domain
 
 import (
 	"context"
-	"strings"
 	"time"
 
 	uuid "github.com/google/uuid"
@@ -37,21 +36,24 @@ func (s *gameService) NextMove(ctx context.Context, board Board, uuidGame uuid.U
 		return Game{}, err
 	}
 
-	// Проверяем что ход нашего игрока
-	userNextMove := strings.TrimPrefix(game.GameState, NextMove)
-	if game.GameState == WaitUsers {
+	// Проверяем состояние игры
+	switch game.State {
+	case StateWaitUsers:
 		return Game{}, ErrWaitOpponent
-	} else if game.GameState == Draw || strings.HasPrefix(game.GameState, Win) {
+	case StateDraw:
+	case StateWin:
 		return Game{}, ErrGameFinished
 	}
 
 	// Сверяем UUID игрока
-	if uuidUser.String() != userNextMove && game.UUIDPlayerSecond != nil {
-		if game.UUIDPlayerFirst != uuidUser && *game.UUIDPlayerSecond != uuidUser {
-			return Game{}, ErrDoesntHaveSuchUser
-		} else {
-			return Game{}, ErrOpponentsMove
-		}
+	isFirst := game.UUIDPlayerFirst == uuidUser
+	isSecond := game.UUIDPlayerSecond != nil && *game.UUIDPlayerSecond == uuidUser
+	// Данный игрок в эту игру не играет
+	if !isFirst && !isSecond {
+		return Game{}, ErrDoesntHaveSuchUser
+	}
+	if game.NextPlayer != nil && *game.NextPlayer != uuidUser {
+		return Game{}, ErrOpponentsMove
 	}
 
 	var playerCellValue int
@@ -76,8 +78,14 @@ func (s *gameService) NextMove(ctx context.Context, board Board, uuidGame uuid.U
 	game.Board = board
 
 	// Проверяем не окончена ли игра после этого хода
-	if finished, _ := s.isFinished(game.Board); finished {
-		game.GameState = Win + uuidUser.String()
+	if finished, winner := s.isFinished(game.Board); finished {
+		switch winner {
+		case Empty:
+			game.State = StateDraw
+		default:
+			game.State = StateWin
+			game.Winner = &uuidUser
+		}
 		game.UpdatedAt = time.Now()
 		if err := s.repo.Save(ctx, game); err != nil {
 			return Game{}, err
@@ -87,11 +95,12 @@ func (s *gameService) NextMove(ctx context.Context, board Board, uuidGame uuid.U
 
 	// Если игра с компьютером
 	if game.WithComputer {
-		return s.nextMoveWithCComputer(ctx, game)
+		return s.nextMoveWithComputer(ctx, game)
 	}
 
 	// Записываем, что следующий ход за оппонентом
-	game.GameState = NextMove + playerNextMove.String()
+	game.State = StateNextMove
+	game.NextPlayer = &playerNextMove
 	game.UpdatedAt = time.Now()
 	if err := s.repo.Save(ctx, game); err != nil {
 		return Game{}, err
@@ -100,14 +109,14 @@ func (s *gameService) NextMove(ctx context.Context, board Board, uuidGame uuid.U
 	return game, nil
 }
 
-func (s *gameService) nextMoveWithCComputer(ctx context.Context, game Game) (Game, error) {
+func (s *gameService) nextMoveWithComputer(ctx context.Context, game Game) (Game, error) {
 	bestScore := -1000
 	var bestPosition pos
 
 	// Перебираем все возможные ходы для O (компьютер)
-	for _, posotion := range s.searchAllOptions(game.Board) {
+	for _, position := range s.searchAllOptions(game.Board) {
 		newBoard := game.Board
-		newBoard[posotion.i][posotion.j] = O
+		newBoard[position.i][position.j] = O
 
 		//Уходим в рекурсию для подсчета выгодности данного хода
 		score, err := s.minimax(ctx, newBoard, 0, false)
@@ -118,7 +127,7 @@ func (s *gameService) nextMoveWithCComputer(ctx context.Context, game Game) (Gam
 		// Если счет лучший, то сохраняем
 		if score > bestScore {
 			bestScore = score
-			bestPosition = posotion
+			bestPosition = position
 		}
 	}
 
@@ -127,8 +136,13 @@ func (s *gameService) nextMoveWithCComputer(ctx context.Context, game Game) (Gam
 	newGame.Board[bestPosition.i][bestPosition.j] = O
 	newGame.UpdatedAt = time.Now()
 
-	if finished, _ := s.isFinished(newGame.Board); finished {
-		newGame.GameState = Win + "computer"
+	if finished, winner := s.isFinished(newGame.Board); finished {
+		switch winner {
+		case Empty:
+			newGame.State = StateDraw
+		default:
+			newGame.State = StateWin
+		}
 	}
 
 	if err := s.repo.Save(ctx, newGame); err != nil {
@@ -166,9 +180,9 @@ func (s *gameService) minimax(ctx context.Context, b Board, depth int, isMax boo
 	}
 
 	// Перебираем все позиции и ищем самую лучшую
-	for _, posotion := range s.searchAllOptions(b) {
+	for _, position := range s.searchAllOptions(b) {
 		newBoard := b
-		newBoard[posotion.i][posotion.j] = player
+		newBoard[position.i][position.j] = player
 
 		score, err := s.minimax(ctx, newBoard, depth+1, !isMax)
 		if err != nil {

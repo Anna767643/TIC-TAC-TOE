@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"src/internal/domain"
@@ -16,7 +17,7 @@ import (
 // mockUserService - заглушка UserService
 type mockUserService struct {
 	RegisterFunc    func(ctx context.Context, signUpRequest domain.SignUpRequest) (domain.User, error)
-	LogInFunc       func(ctx context.Context, signUpRequest domain.SignUpRequest) (string, error)
+	LogInFunc       func(ctx context.Context, signUpRequest domain.SignUpRequest) (uuid.UUID, error)
 	GetUserInfoFunc func(ctx context.Context, uuidUser uuid.UUID) (domain.User, error)
 }
 
@@ -24,7 +25,7 @@ func (m *mockUserService) Register(ctx context.Context, signUpRequest domain.Sig
 	return m.RegisterFunc(ctx, signUpRequest)
 }
 
-func (m *mockUserService) LogIn(ctx context.Context, signUpRequest domain.SignUpRequest) (string, error) {
+func (m *mockUserService) LogIn(ctx context.Context, signUpRequest domain.SignUpRequest) (uuid.UUID, error) {
 	return m.LogInFunc(ctx, signUpRequest)
 }
 
@@ -119,6 +120,7 @@ func TestHandleUsersCreate(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 			// Настраиваем моки
 			mockUS := &mockUserService{}
 			tc.setupmocks(mockUS)
@@ -151,6 +153,7 @@ func TestHandleUsersCreate(t *testing.T) {
 }
 
 func TestHandleSessionCreate(t *testing.T) {
+	uuidUser := uuid.New()
 
 	testCases := []struct {
 		name           string
@@ -165,20 +168,20 @@ func TestHandleSessionCreate(t *testing.T) {
 			login:    "anna",
 			password: "12345",
 			setupmocks: func(us *mockUserService) {
-				us.LogInFunc = func(ctx context.Context, signUpRequest domain.SignUpRequest) (string, error) {
-					return "303c12d2-618f-45ec-94b5-260e68e156d0", nil
+				us.LogInFunc = func(ctx context.Context, signUpRequest domain.SignUpRequest) (uuid.UUID, error) {
+					return uuidUser, nil
 				}
 			},
 			expectedCode:   http.StatusOK,
-			expectedInBody: `{"UUID":"303c12d2-618f-45ec-94b5-260e68e156d0"}`,
+			expectedInBody: fmt.Sprintf(`{"UUID":"%s"}`, uuidUser.String()),
 		},
 		{
 			name:     "Wrong password",
 			login:    "anna",
 			password: "1245",
 			setupmocks: func(us *mockUserService) {
-				us.LogInFunc = func(ctx context.Context, signUpRequest domain.SignUpRequest) (string, error) {
-					return "", domain.ErrLoginOrPasswordIncorrect
+				us.LogInFunc = func(ctx context.Context, signUpRequest domain.SignUpRequest) (uuid.UUID, error) {
+					return uuid.Nil, domain.ErrLoginOrPasswordIncorrect
 				}
 			},
 			expectedCode:   http.StatusUnauthorized,
@@ -189,8 +192,8 @@ func TestHandleSessionCreate(t *testing.T) {
 			login:    "ana",
 			password: "12345",
 			setupmocks: func(us *mockUserService) {
-				us.LogInFunc = func(ctx context.Context, signUpRequest domain.SignUpRequest) (string, error) {
-					return "", domain.ErrLoginOrPasswordIncorrect
+				us.LogInFunc = func(ctx context.Context, signUpRequest domain.SignUpRequest) (uuid.UUID, error) {
+					return uuid.Nil, domain.ErrLoginOrPasswordIncorrect
 				}
 			},
 			expectedCode:   http.StatusUnauthorized,
@@ -198,12 +201,9 @@ func TestHandleSessionCreate(t *testing.T) {
 		},
 		{
 			name:     "Empty auth",
-			login:    "anna",
+			login:    "",
 			password: "",
 			setupmocks: func(us *mockUserService) {
-				us.LogInFunc = func(ctx context.Context, signUpRequest domain.SignUpRequest) (string, error) {
-					return "", domain.ErrLoginOrPasswordIncorrect
-				}
 			},
 			expectedCode:   http.StatusBadRequest,
 			expectedInBody: `"need authorization"`,
@@ -213,8 +213,8 @@ func TestHandleSessionCreate(t *testing.T) {
 			login:    "anna",
 			password: "12345",
 			setupmocks: func(us *mockUserService) {
-				us.LogInFunc = func(ctx context.Context, signUpRequest domain.SignUpRequest) (string, error) {
-					return "", domain.ErrContextCanceled
+				us.LogInFunc = func(ctx context.Context, signUpRequest domain.SignUpRequest) (uuid.UUID, error) {
+					return uuid.Nil, domain.ErrContextCanceled
 				}
 			},
 			expectedCode:   http.StatusInternalServerError,
@@ -224,6 +224,7 @@ func TestHandleSessionCreate(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 			// Настраиваем моки
 			mockUS := &mockUserService{}
 			tc.setupmocks(mockUS)

@@ -6,7 +6,6 @@ import (
 	"errors"
 	"net/http"
 	"src/internal/domain"
-	"strings"
 
 	uuid "github.com/google/uuid"
 )
@@ -32,7 +31,7 @@ func (h *GameHandler) Register(mux *http.ServeMux, auth *UserAuthenticator, u *U
 	mux.HandleFunc("GET /users/{uuid}", auth.Validate(u.handleGetUserInfo))
 
 	mux.HandleFunc("POST /games", auth.Validate(h.handleCreateGame))
-	mux.HandleFunc("GET /games", auth.Validate(h.handleGetAvaibleGames))
+	mux.HandleFunc("GET /games", auth.Validate(h.handleGetAvailableGames))
 	mux.HandleFunc("GET /games/{uuid}", auth.Validate(h.handleGetGameInfo))
 	mux.HandleFunc("PATCH /games/{uuid}/users", auth.Validate(h.handleJoinUser))
 	mux.HandleFunc("PATCH /games/{uuid}", auth.Validate(h.handlePatchCurrentGame))
@@ -89,7 +88,7 @@ func (h *GameHandler) handleCreateGame(w http.ResponseWriter, r *http.Request) {
 }
 
 /*
-handleGetAvaibleGames - получение информации о доступных играх
+handleGetAvailableGames - получение информации о доступных играх
 Method GET /games
 Query параметры (?gameState=waitUsers)
 
@@ -105,7 +104,7 @@ Status code:
 - 500 Internal Server Error
 JSON, описание ошибки
 */
-func (h *GameHandler) handleGetAvaibleGames(w http.ResponseWriter, r *http.Request) {
+func (h *GameHandler) handleGetAvailableGames(w http.ResponseWriter, r *http.Request) {
 	ctx, uuidUser, err := getUUIDUser(w, r)
 	if err != nil {
 		return
@@ -117,7 +116,7 @@ func (h *GameHandler) handleGetAvaibleGames(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
-	games, err := h.gameService.GetAvaibleGames(ctx, uuidUser)
+	games, err := h.gameService.GetAvailableGames(ctx, uuidUser)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return
@@ -248,20 +247,18 @@ func (h *GameHandler) handlePatchCurrentGame(w http.ResponseWriter, r *http.Requ
 		return
 	}
 
-	if game.GameState == domain.Draw {
+	if game.State == domain.StateDraw {
 
 		writeJSON(w, http.StatusOK, map[string]string{
 			"message": "GAME OVER",
 			"winner":  "DRAW",
 		})
 
-	} else if strings.HasPrefix(game.GameState, domain.Win) {
-
-		winnerUUID := strings.TrimPrefix(game.GameState, domain.Win)
+	} else if game.State == domain.StateWin {
 
 		writeJSON(w, http.StatusOK, map[string]string{
 			"message": "GAME OVER",
-			"winner":  winnerUUID,
+			"winner":  game.Winner.String(),
 		})
 
 	} else {
@@ -324,16 +321,10 @@ func (h *GameHandler) handleGetGameInfo(w http.ResponseWriter, r *http.Request) 
 func getUUIDUser(w http.ResponseWriter, r *http.Request) (context.Context, uuid.UUID, error) {
 	ctx := r.Context()
 
-	userUUID, ok := ctx.Value(userUUIDKey).(string)
+	uuidUser, ok := ctx.Value(userUUIDKey).(uuid.UUID)
 	if !ok {
 		writeError(w, http.StatusUnauthorized, "need authorization")
 		return ctx, uuid.UUID{}, errors.New("error get user uuid")
-	}
-
-	uuidUser, err := toUUID(userUUID)
-	if err != nil {
-		writeError(w, http.StatusInternalServerError, err.Error())
-		return ctx, uuid.UUID{}, err
 	}
 
 	return ctx, uuidUser, nil

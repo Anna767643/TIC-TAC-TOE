@@ -48,8 +48,12 @@ func runServer(lc fx.Lifecycle, srv *http.Server, db *datasource.DBPool) {
 	lc.Append(fx.Hook{
 		// OnStart выполняется при запуске приложения
 		OnStart: func(ctx context.Context) error {
-			datasource.CreateTableUsers(ctx, db.GetPool())
-			datasource.CreateTableGames(ctx, db.GetPool())
+			if err := datasource.CreateTableUsers(ctx, db.GetPool()); err != nil {
+				log.Fatalf("Failed to create users table: %v", err)
+			}
+			if err := datasource.CreateTableGames(ctx, db.GetPool()); err != nil {
+				log.Fatalf("Failed to create games table: %v", err)
+			}
 			log.Printf("Starting HTTP server on %s", srv.Addr)
 			// Запускаем сервер в отдельной горутине, чтобы не блокировать старт fx
 			go func() {

@@ -92,7 +92,7 @@ func TestLogIn(t *testing.T) {
 		testName       string
 		setupMock      func(*MockUserRepository)
 		signUpRequest  SignUpRequest
-		expectedResult string
+		expectedResult uuid.UUID
 		expectedErr    error
 	}{
 		{
@@ -110,7 +110,7 @@ func TestLogIn(t *testing.T) {
 				Login:    "Anna",
 				Password: "12345",
 			},
-			expectedResult: userId.String(),
+			expectedResult: userId,
 			expectedErr:    nil,
 		},
 		{
@@ -128,7 +128,7 @@ func TestLogIn(t *testing.T) {
 				Login:    "Anna",
 				Password: "123",
 			},
-			expectedResult: "",
+			expectedResult: uuid.UUID{},
 			expectedErr:    ErrLoginOrPasswordIncorrect,
 		},
 		{
@@ -142,7 +142,7 @@ func TestLogIn(t *testing.T) {
 				Login:    "Anna",
 				Password: "12345",
 			},
-			expectedResult: "",
+			expectedResult: uuid.UUID{},
 			expectedErr:    ErrLoginOrPasswordIncorrect,
 		},
 	}

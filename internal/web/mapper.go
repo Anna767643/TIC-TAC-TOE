@@ -3,6 +3,7 @@ package web
 import (
 	uuid "github.com/google/uuid"
 	"src/internal/domain"
+	"time"
 )
 
 // toDomain преобразует GameDTO в domain.Game
@@ -33,20 +34,28 @@ func toUUID(str string) (uuid.UUID, error) {
 
 // toDTO - преобразует domain.Game в GameDTO
 func toGameDTO(game domain.Game) gameDTO {
-	var uuidPlayerSecond string
-	if game.UUIDPlayerSecond != nil {
-		uuidPlayerSecond = (*game.UUIDPlayerSecond).String()
-	}
 	return gameDTO{
-		ID:               game.ID,
-		UUID:             game.UUID.String(),
-		Board:            boardDTO(game.Board),
-		WithComputer:     game.WithComputer,
-		GameState:        game.GameState,
+		ID:           game.ID,
+		UUID:         game.UUID.String(),
+		Board:        boardDTO(game.Board),
+		WithComputer: game.WithComputer,
+		State:        game.State,
+		NextPlayer:   uuidPtrToString(game.NextPlayer),
+		Winner:       uuidPtrToString(game.Winner),
+
 		UUIDPlayerFirst:  game.UUIDPlayerFirst.String(),
-		UUIDPlayerSecond: &uuidPlayerSecond,
-		UpdatedAt:        game.UpdatedAt.String(),
+		UUIDPlayerSecond: uuidPtrToString(game.UUIDPlayerSecond),
+		UpdatedAt:        game.UpdatedAt.UTC().Format(time.RFC3339),
 	}
+}
+
+// uuidPtrToString - переводит *uuid.UUID в *string
+func uuidPtrToString(val *uuid.UUID) *string {
+	if val == nil {
+		return nil
+	}
+	str := val.String()
+	return &str
 }
 
 // toUserDT - парсит domain.User в userDTO
@@ -55,6 +64,6 @@ func toUserDTO(user domain.User) userDTO {
 		ID:       user.ID,
 		UUID:     user.UUID.String(),
 		Login:    user.Login,
-		CreateAt: user.CreateAt.String(),
+		CreateAt: user.CreateAt.UTC().Format(time.RFC3339),
 	}
 }

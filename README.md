@@ -26,9 +26,9 @@ JSON, представляющий созданного пользователя
 ```json
 {
     "id": 1,
-    "uuid": "182aca9f-e260-40fc-bfdf-654725db84cd",
+    "uuid": "7ef1857b-2fc3-4ae2-9a1a-9c85fc4971b9",
     "login": "anna",
-    "createAt": "2026-10-27 15:58:49.690819 +0000 UTC"
+    "createAt": "2026-10-28 15:10:24Z"
 }
 ```
 
@@ -42,7 +42,7 @@ JSON, описание ошибки
 
 ### 2. Авторизация существующих пользователей
 
-### POST /sestions
+### POST /sessions
 в Header логин и пароль в виде base64(login:password)
 ```
 Key: Authorization Value: Basic YW5uYToxMjM0NQ==
@@ -80,7 +80,7 @@ Key: Authorization Value: Basic YW5uYToxMjM0NQ==
 JSON в теле запроса:
 ```json
 {
-"withComputer": true/false
+"with_computer": true/false
 }
 ```
 #### Ограничения
@@ -102,9 +102,11 @@ JSON, представляющий созданный ресурс, в теле 
     ],
     "with_computer": true,
     "game_state": "next move user 182aca9f-e260-40fc-bfdf-654725db84cd",
+    "next_player": "82aca9f-e260-40fc-bfdf-654725db84cd",
+    "winner": null,
     "uuid_player_first": "182aca9f-e260-40fc-bfdf-654725db84cd",
-    "uuid_player_second": "",
-    "update_at": "2026-10-28 15:12:24.865521 +0000 UTC"
+    "uuid_player_second": null,
+    "update_at": "2026-10-28 15:12:24Z"
 }
 ```
 #### Ошибка
@@ -143,10 +145,12 @@ JSON, представляющий все найденные игры, в тел
             [0,0,0]
         ],
         "with_computer": false,
-        "game_state": "wait users",
+        "state": "wait users",
+        "next_player": null,
+        "winner": null,
         "uuid_player_first": "e4432ee8-26ba-43c4-b4f9-88e547798007",
-        "uuid_player_second": "",
-        "update_at": "2026-10-27 16:09:22.369805 +0000 UTC"
+        "uuid_player_second": null,
+        "update_at": "2026-10-27 16:09:22Z"
     },
     {
         "id": 5,
@@ -157,10 +161,12 @@ JSON, представляющий все найденные игры, в тел
             [0,0,0]
         ],
         "with_computer": false,
-        "game_state": "wait users",
+        "state": "wait users",
+        "next_player": null,
+        "winner": null,
         "uuid_player_first": "e4432ee8-26ba-43c4-b4f9-88e547798007",
-        "uuid_player_second": "",
-        "update_at": "2026-10-27 16:11:46.006371 +0000 UTC"
+        "uuid_player_second": null,
+        "update_at": "2026-10-27 16:11:46Z"
     },
     {
         "id": 7,
@@ -171,10 +177,12 @@ JSON, представляющий все найденные игры, в тел
             [0,0,0]
         ],
         "with_computer": false,
-        "game_state": "wait users",
+        "state": "wait users",
+        "next_player": null,
+        "winner": null,
         "uuid_player_first": "e4432ee8-26ba-43c4-b4f9-88e547798007",
-        "uuid_player_second": "",
-        "update_at": "2026-10-28 10:26:58.958947 +0000 UTC"
+        "uuid_player_second": null,
+        "update_at": "2026-10-28 10:26:58Z"
     }
 ]
 ```
@@ -213,10 +221,12 @@ JSON, представляющий новую изменнёную игру, в 
         [0,0,0]
     ],
     "with_computer": false,
-    "game_state": "next move user e4432ee8-26ba-43c4-b4f9-88e547798007",
+    "state": "next move",
+    "next_player": "e4432ee8-26ba-43c4-b4f9-88e547798007",
+    "winner": null,
     "uuid_player_first": "e4432ee8-26ba-43c4-b4f9-88e547798007",
     "uuid_player_second": "182aca9f-e260-40fc-bfdf-654725db84cd",
-    "update_at": "2026-10-28 15:44:08.189064 +0000 UTC"
+    "update_at": "2026-10-28 15:44:08Z"
 }
 ```
 #### Ошибка
@@ -237,13 +247,13 @@ Key: Authorization Value: Basic YW5uYToxMjM0NQ==
 ```
 JSON в теле запроса:
 ```json
-	{
-		"board": [
-			    [0,2,1],
-			    [0,0,0],
-			    [0,0,0]
-			]
-	}
+{
+	"board": [
+			[0,2,1],
+			[0,0,0],
+			[0,0,0]
+		]
+}
 ```
 #### Ограничения
 - пользователь зарегистрирован в данной игре
@@ -261,16 +271,17 @@ JSON, представляющий новую изменнёную игру, в 
     "id": 7,
     "uuid": "e33ac5c1-34fa-4348-8d55-4afa7e45c3bf",
     "board": [
-    "board": [
         [0,2,1],  
         [0,0,0],
         [0,0,0]
     ],
     "with_computer": false,
-    "game_state": "next move user e4432ee8-26ba-43c4-b4f9-88e547798007",
+    "state": "next move",
+    "next_player": "e4432ee8-26ba-43c4-b4f9-88e547798007",
+    "winner": null,
     "uuid_player_first": "e4432ee8-26ba-43c4-b4f9-88e547798007",
     "uuid_player_second": "182aca9f-e260-40fc-bfdf-654725db84cd",
-    "update_at": "2026-10-28 15:49:10.952893774 +0700 +07 m=+12.065406485"
+    "update_at": "2026-10-28 15:49:10Z"
 }
 ```
 
@@ -303,16 +314,17 @@ JSON, представляющий игру, в теле ответа:
     "id": 7,
     "uuid": "e33ac5c1-34fa-4348-8d55-4afa7e45c3bf",
     "board": [
-    "board": [
         [0,2,1],  
         [0,0,0],
         [0,0,0]
     ],
     "with_computer": false,
-    "game_state": "next move user e4432ee8-26ba-43c4-b4f9-88e547798007",
+    "state": "next move",
+    "next_player": "e4432ee8-26ba-43c4-b4f9-88e547798007",
+    "winner": null,
     "uuid_player_first": "e4432ee8-26ba-43c4-b4f9-88e547798007",
     "uuid_player_second": "182aca9f-e260-40fc-bfdf-654725db84cd",
-    "update_at": "2026-10-28 15:49:10.952893774 +0700 +07 m=+12.065406485"
+    "update_at": "2026-10-28 15:49:10Z"
 }
 ```
 
@@ -344,7 +356,7 @@ JSON, представляющий информацию о пользовате�
     "id": 1,
     "uuid": "182aca9f-e260-40fc-bfdf-654725db84cd",
     "login": "anna",
-    "createAt": "2026-10-27 15:58:49.690819 +0000 UTC"
+    "createAt": "2026-10-27 15:58:49Z"
 }
 ```
 

@@ -1,5 +1,7 @@
 package web
 
+import "src/internal/domain"
+
 // BoardDTO - поле в JSON: массив 3×3 целых чисел (0 пусто, 1 X, 2 O).
 type boardDTO [3][3]int
 
@@ -14,11 +16,13 @@ type reqNewGame struct {
 
 // GameDTO - модель игры
 type gameDTO struct {
-	ID           int      `json:"id"`
-	UUID         string   `json:"uuid"`
-	Board        boardDTO `json:"board"`
-	WithComputer bool     `json:"with_computer"`
-	GameState    string   `json:"game_state"`
+	ID           int              `json:"id"`
+	UUID         string           `json:"uuid"`
+	Board        boardDTO         `json:"board"`
+	WithComputer bool             `json:"with_computer"`
+	State        domain.GameState `json:"state"`
+	NextPlayer   *string          `json:"next_player"`
+	Winner       *string          `json:"winner"`
 
 	UUIDPlayerFirst  string  `json:"uuid_player_first"`  // X
 	UUIDPlayerSecond *string `json:"uuid_player_second"` // O

@@ -108,7 +108,7 @@ func (u *UserHandler) handleSessionCreate(w http.ResponseWriter, r *http.Request
 		UUID string
 	}
 
-	res := response{UUID: uuid}
+	res := response{UUID: uuid.String()}
 	writeJSON(w, http.StatusOK, res)
 }
 
@@ -151,6 +151,6 @@ func (u *UserHandler) handleGetUserInfo(w http.ResponseWriter, r *http.Request) 
 	}
 
 	userDTO := toUserDTO(user)
-	writeJSON(w, http.StatusCreated, userDTO)
+	writeJSON(w, http.StatusOK, userDTO)
 
 }
