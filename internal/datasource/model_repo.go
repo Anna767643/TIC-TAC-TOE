@@ -13,7 +13,6 @@ type gameEntity struct {
 	UUID         uuid.UUID        `db:"uuid"`
 	Board        string           `db:"board"`
 	WithComputer bool             `db:"with_computer"`
-	GameState    string           `db:"game_state"`
 	State        domain.GameState `db:"state"`
 	NextPlayer   *uuid.UUID       `db:"next_player"`
 	Winner       *uuid.UUID       `db:"winner"`
