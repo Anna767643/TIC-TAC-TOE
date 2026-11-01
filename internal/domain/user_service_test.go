@@ -9,31 +9,32 @@ import (
 	"golang.org/x/crypto/bcrypt"
 )
 
-// MockUserRepository - заглушка для репозитория,
+// mockUserRepository - заглушка для репозитория,
 // что бы проверить работу функций userService
-type MockUserRepository struct {
+type mockUserRepository struct {
 	SaveFunc func(ctx context.Context, user User) error
 	GetFunc  func(ctx context.Context, login string, uuidUser uuid.UUID) (User, error)
 }
 
-func (m *MockUserRepository) Save(ctx context.Context, user User) error {
+func (m *mockUserRepository) Save(ctx context.Context, user User) error {
 	return m.SaveFunc(ctx, user)
 }
 
-func (m *MockUserRepository) Get(ctx context.Context, login string, uuidUser uuid.UUID) (User, error) {
+func (m *mockUserRepository) Get(ctx context.Context, login string, uuidUser uuid.UUID) (User, error) {
 	return m.GetFunc(ctx, login, uuidUser)
 }
 
 func TestRegister(t *testing.T) {
 	testCases := []struct {
 		testName      string
-		setupMock     func(*MockUserRepository)
+		setupMock     func(*mockUserRepository)
 		signUpRequest SignUpRequest
 		expectedErr   error
+		cancelCtx     bool
 	}{
 		{
 			testName: "OK",
-			setupMock: func(repo *MockUserRepository) {
+			setupMock: func(repo *mockUserRepository) {
 				repo.SaveFunc = func(ctx context.Context, user User) error {
 					return nil
 				}
@@ -49,7 +50,7 @@ func TestRegister(t *testing.T) {
 		},
 		{
 			testName: "User with this login already exists",
-			setupMock: func(repo *MockUserRepository) {
+			setupMock: func(repo *mockUserRepository) {
 				repo.SaveFunc = func(ctx context.Context, user User) error {
 					return ErrLoginIncorrect
 				}
@@ -69,7 +70,7 @@ func TestRegister(t *testing.T) {
 		t.Run(tc.testName, func(t *testing.T) {
 			ctx, cancel := context.WithCancel(context.Background())
 			defer cancel()
-			mock := &MockUserRepository{}
+			mock := &mockUserRepository{}
 
 			tc.setupMock(mock)
 
@@ -90,14 +91,14 @@ func TestLogIn(t *testing.T) {
 
 	testCases := []struct {
 		testName       string
-		setupMock      func(*MockUserRepository)
+		setupMock      func(*mockUserRepository)
 		signUpRequest  SignUpRequest
 		expectedResult uuid.UUID
 		expectedErr    error
 	}{
 		{
 			testName: "OK",
-			setupMock: func(repo *MockUserRepository) {
+			setupMock: func(repo *mockUserRepository) {
 				repo.GetFunc = func(ctx context.Context, login string, uuidUser uuid.UUID) (User, error) {
 					return User{
 						UUID:         userId,
@@ -115,7 +116,7 @@ func TestLogIn(t *testing.T) {
 		},
 		{
 			testName: "Password is incorrect",
-			setupMock: func(repo *MockUserRepository) {
+			setupMock: func(repo *mockUserRepository) {
 				repo.GetFunc = func(ctx context.Context, login string, uuidUser uuid.UUID) (User, error) {
 					return User{
 						UUID:         userId,
@@ -133,7 +134,7 @@ func TestLogIn(t *testing.T) {
 		},
 		{
 			testName: "Login is incorrect",
-			setupMock: func(repo *MockUserRepository) {
+			setupMock: func(repo *mockUserRepository) {
 				repo.GetFunc = func(ctx context.Context, login string, uuidUser uuid.UUID) (User, error) {
 					return User{}, ErrUserNotFound
 				}
@@ -151,7 +152,7 @@ func TestLogIn(t *testing.T) {
 		t.Run(tc.testName, func(t *testing.T) {
 			ctx, cancel := context.WithCancel(context.Background())
 			defer cancel()
-			mock := &MockUserRepository{}
+			mock := &mockUserRepository{}
 
 			tc.setupMock(mock)
 

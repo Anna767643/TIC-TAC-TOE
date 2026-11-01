@@ -24,7 +24,7 @@ SaveNewGame - сохранение новой игры
 Ошибки:
 ErrContextCanceled
 "repository: insert game %s: %w"
-ErrGameNotFound
+"repository: failed select game after save: %w"
 "repository: select game %s: %w"
 "repository: failed to map game entity to domain: error"
 */
@@ -42,6 +42,9 @@ func (r *gameRepository) SaveNewGame(ctx context.Context, game domain.Game) (dom
 
 	gameEntity, err = r.gs.selectFromGames(ctx, game.UUID)
 	if err != nil {
+		if err == domain.ErrGameNotFound {
+			return domain.Game{}, fmt.Errorf("repository: failed select game after save: %w", err)
+		}
 		return domain.Game{}, err
 	}
 

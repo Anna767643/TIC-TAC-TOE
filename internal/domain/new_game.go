@@ -7,8 +7,16 @@ import (
 	uuid "github.com/google/uuid"
 )
 
-// CreateNewGame - создаёт новую игру с компьютером или другим игроком.
-// Возвращает информацию о новой игре и ошибку
+/*
+CreateNewGame - создаёт новую игру с компьютером или другим игроком
+Возвращает информацию о новой игре
+Ошибки:
+ErrContextCanceled
+"repository: insert game %s: %w"
+"repository: failed select game after save: %w"
+"repository: select game %s: %w"
+"repository: failed to map game entity to domain: error"
+*/
 func (s *gameService) CreateNewGame(ctx context.Context, withComputer bool, uuidUser uuid.UUID) (Game, error) {
 	if err := ctx.Err(); err != nil {
 		return Game{}, ErrContextCanceled
@@ -40,8 +48,14 @@ func (s *gameService) CreateNewGame(ctx context.Context, withComputer bool, uuid
 	return newGame, nil
 }
 
-// GetAvailableGames - находит и возвращает все доступные игры
-// для присоединения игрока с определённым UUID, или ошибку
+/*
+GetAvailableGames - находит и возвращает все доступные игры
+для присоединения игрока с определённым UUID, или ошибку
+Ошибки:
+ErrContextCanceled
+"repository: select game for user %s: %w"
+"repository: scan game for user %s: %w"
+*/
 func (s *gameService) GetAvailableGames(ctx context.Context, uuidUser uuid.UUID) ([]Game, error) {
 	if err := ctx.Err(); err != nil {
 		return []Game{}, ErrContextCanceled
@@ -52,18 +66,29 @@ func (s *gameService) GetAvailableGames(ctx context.Context, uuidUser uuid.UUID)
 		return []Game{}, err
 	}
 
-	return games, err
+	return games, nil
 }
 
-// JoinUser - присоединяет пользователя к игре
-// В случае успеха возвращает измененную игру
-// Ошибки: игра не найдена, к данной игре нельзя добавить пользователя,
-// context.Canceled, или иная неописанная ошибка
+/*
+JoinUser - присоединяет пользователя к игре
+В случае успеха возвращает измененную игру
+Ошибки:
+ErrContextCanceled
+ErrGameNotFound
+"repository: select game %s: %w"
+ErrAddUser
+
+----Тут гонка возникает!!!!!!!!!!!!!!!
+игра не найдена, к данной игре нельзя добавить пользователя,
+context.Canceled, или иная неописанная ошибка
+*/
 func (s *gameService) JoinUser(ctx context.Context, uuidUser uuid.UUID, uuidGame uuid.UUID) (Game, error) {
 	if err := ctx.Err(); err != nil {
 		return Game{}, ErrContextCanceled
 	}
-
+	// -------------!!!!!!!!!!!!!!!!!!!!!!!!-----------------
+	// Тут пишем одну функцию JoinUser,
+	// внутри запроса проверяем все необходимые данные
 	game, err := s.repo.Get(ctx, uuidGame)
 	if err != nil {
 		return Game{}, err
@@ -94,11 +119,14 @@ func (s *gameService) JoinUser(ctx context.Context, uuidUser uuid.UUID, uuidGame
 	return newGame, nil
 }
 
-// GetGame - получает информацию об игре
-// Ошибки:
-// ErrContextCanceled - игра прерывается
-// ErrGameNotFound - игра не найдена
-// ErrDoesntHaveSuchUser - в этой игре нет такого пользователя
+/*
+GetGame - получает информацию об игре
+Ошибки:
+ErrContextCanceled - игра прерывается
+ErrGameNotFound - игра не найдена
+"repository: select game %s: %w"
+ErrDoesntHaveSuchUser - в этой игре нет такого пользователя
+*/
 func (s *gameService) GetGame(ctx context.Context, uuidGame uuid.UUID, uuidUser uuid.UUID) (Game, error) {
 	if err := ctx.Err(); err != nil {
 		return Game{}, ErrContextCanceled

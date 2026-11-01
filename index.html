@@ -1,0 +1,2141 @@
+
+<!DOCTYPE html>
+<html>
+	<head>
+		<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+		<title>datasource: Go Coverage Report</title>
+		<style>
+			body {
+				background: black;
+				color: rgb(80, 80, 80);
+			}
+			body, pre, #legend span {
+				font-family: Menlo, monospace;
+				font-weight: bold;
+			}
+			#topbar {
+				background: black;
+				position: fixed;
+				top: 0; left: 0; right: 0;
+				height: 42px;
+				border-bottom: 1px solid rgb(80, 80, 80);
+			}
+			#content {
+				margin-top: 50px;
+			}
+			#nav, #legend {
+				float: left;
+				margin-left: 10px;
+			}
+			#legend {
+				margin-top: 12px;
+			}
+			#nav {
+				margin-top: 10px;
+			}
+			#legend span {
+				margin: 0 5px;
+			}
+			.cov0 { color: rgb(192, 0, 0) }
+.cov1 { color: rgb(128, 128, 128) }
+.cov2 { color: rgb(116, 140, 131) }
+.cov3 { color: rgb(104, 152, 134) }
+.cov4 { color: rgb(92, 164, 137) }
+.cov5 { color: rgb(80, 176, 140) }
+.cov6 { color: rgb(68, 188, 143) }
+.cov7 { color: rgb(56, 200, 146) }
+.cov8 { color: rgb(44, 212, 149) }
+.cov9 { color: rgb(32, 224, 152) }
+.cov10 { color: rgb(20, 236, 155) }
+
+		</style>
+	</head>
+	<body>
+		<div id="topbar">
+			<div id="nav">
+				<select id="files">
+				
+				<option value="file0">src/internal/datasource/create_tables.go (0.0%)</option>
+				
+				<option value="file1">src/internal/datasource/game_storage.go (79.1%)</option>
+				
+				<option value="file2">src/internal/datasource/mapper.go (96.2%)</option>
+				
+				<option value="file3">src/internal/datasource/repository_impl.go (92.2%)</option>
+				
+				<option value="file4">src/internal/di/module.go (0.0%)</option>
+				
+				<option value="file5">src/internal/di/server.go (0.0%)</option>
+				
+				<option value="file6">src/internal/domain/isFinished.go (100.0%)</option>
+				
+				<option value="file7">src/internal/domain/minimax.go (95.7%)</option>
+				
+				<option value="file8">src/internal/domain/new_game.go (58.5%)</option>
+				
+				<option value="file9">src/internal/domain/service_impl.go (100.0%)</option>
+				
+				<option value="file10">src/internal/domain/user_service.go (53.1%)</option>
+				
+				<option value="file11">src/internal/domain/validate.go (100.0%)</option>
+				
+				<option value="file12">src/internal/web/handler_game.go (0.0%)</option>
+				
+				<option value="file13">src/internal/web/handler_user.go (69.4%)</option>
+				
+				<option value="file14">src/internal/web/mapper.go (10.0%)</option>
+				
+				<option value="file15">src/internal/web/response.go (80.0%)</option>
+				
+				<option value="file16">src/internal/web/user_authenticator.go (0.0%)</option>
+				
+				</select>
+			</div>
+			<div id="legend">
+				<span>not tracked</span>
+			
+				<span class="cov0">not covered</span>
+				<span class="cov8">covered</span>
+			
+			</div>
+		</div>
+		<div id="content">
+		
+		<pre class="file" id="file0" style="display: none">package datasource
+
+import (
+        "context"
+
+        "github.com/jackc/pgx/v5/pgxpool"
+)
+
+// CreateTableUsers -создает таблицу пользователей, если её еще нет
+// Возвращает ошибку, если они возникли при выполнении запроса
+func CreateTableUsers(ctx context.Context, pool *pgxpool.Pool) error <span class="cov0" title="0">{
+        sqlQuery := `
+        CREATE TABLE IF NOT EXISTS users (
+        id INTEGER GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+        uuid UUID NOT NULL UNIQUE,
+        login VARCHAR(255) NOT NULL UNIQUE,
+        password_hash VARCHAR(255) NOT NULL,
+        create_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+        );
+        `
+
+        _, err := pool.Exec(ctx, sqlQuery)
+
+        return err
+}</span>
+
+// CreateTableGames -создает таблицу игр, если её еще нет
+// Возвращает ошибку, если они возникли при выполнении запроса
+func CreateTableGames(ctx context.Context, pool *pgxpool.Pool) error <span class="cov0" title="0">{
+        sqlQuery := `
+        CREATE TABLE IF NOT EXISTS games (
+        id INTEGER GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+        uuid UUID NOT NULL UNIQUE,
+        board VARCHAR(255) NOT NULL,
+        with_computer BOOLEAN NOT NULL DEFAULT FALSE,
+        state VARCHAR(16) NOT NULL,
+        next_player UUID,
+        winner UUID,
+
+        uuid_player_first UUID NOT NULL,
+        uuid_player_second UUID,
+
+        update_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+
+        FOREIGN KEY (uuid_player_first) REFERENCES users (uuid),
+        FOREIGN KEY (uuid_player_second) REFERENCES users (uuid)
+        );
+        `
+
+        _, err := pool.Exec(ctx, sqlQuery)
+
+        return err
+}</span>
+</pre>
+		
+		<pre class="file" id="file1" style="display: none">package datasource
+
+import (
+        "context"
+        "errors"
+        "fmt"
+        "src/internal/domain"
+        "time"
+
+        uuid "github.com/google/uuid"
+        "github.com/jackc/pgerrcode"
+        "github.com/jackc/pgx/v5"
+        "github.com/jackc/pgx/v5/pgconn"
+        "github.com/jackc/pgx/v5/pgxpool"
+)
+
+type gameStorage interface {
+        // Close - закрывает соединение
+        Close()
+
+        // GetPool - передает соединение
+        GetPool() *pgxpool.Pool
+
+        // insertIntoGames - добавляет новую игру в таблице games
+        // "repository: insert game %s: %w"
+        insertIntoGames(ctx context.Context, game gameEntity) error
+
+        // updateGames - обновляет информацию об игре в таблице games
+        // "repository: update game %s: %w"
+        updateGames(ctx context.Context, game gameEntity) error
+
+        // selectAvaibleGamesFromGames - получение среза игр из таблицы games
+        // доступных для присоединения игроку с uuid = uuidUser
+        // "repository: select game for user %s: %w"
+        // "repository: scan game for user %s: %w"
+        selectAvaibleGamesFromGames(ctx context.Context, uuidUser uuid.UUID) ([]gameEntity, error)
+
+        // selectFromGames - получение информации об игре по UUID игры из таблицы games
+        // ErrGameNotFound
+        // "repository: select game %s: %w"
+        selectFromGames(ctx context.Context, uuid uuid.UUID) (gameEntity, error)
+
+        // insertPlayer - добаление нового играка в БД
+        // ErrLoginIncorrect
+        // "repository: insert user with %s: %w"
+        insertIntoUsers(ctx context.Context, user userEntity) error
+
+        // selectFromUsersWithLogin - получение информации об игроке по логину
+        // ErrUserNotFound
+        // "repository: select user with %s: %w"
+        selectFromUsersWithLogin(ctx context.Context, login string) (userEntity, error)
+
+        // selectFromUsersWithUUID - получение информации об игроке по uuid
+        // ErrUserNotFound
+        // "repository: select user with %s: %w"
+        selectFromUsersWithUUID(ctx context.Context, uuidUser uuid.UUID) (userEntity, error)
+}
+
+// DBPool - соединение с БД, потокобезопасен
+// Реализация gameStorage
+type DBPool struct {
+        pool *pgxpool.Pool
+}
+
+// NewDBPool - конструктор для di
+func NewDBPool(dsn string) (*DBPool, error) <span class="cov8" title="1">{
+        ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+        defer cancel()
+
+        config, err := pgxpool.ParseConfig(dsn)
+        if err != nil </span><span class="cov0" title="0">{
+                return nil, fmt.Errorf("ошибка парсинга конфига: %w", err)
+        }</span>
+
+        <span class="cov8" title="1">pool, err := pgxpool.NewWithConfig(ctx, config)
+        if err != nil </span><span class="cov0" title="0">{
+                return nil, fmt.Errorf("ошибка создания пула: %w", err)
+        }</span>
+        <span class="cov8" title="1">if err := pool.Ping(ctx); err != nil </span><span class="cov0" title="0">{
+                return nil, fmt.Errorf("не удалось пингануть БД: %w", err)
+        }</span>
+
+        <span class="cov8" title="1">return &amp;DBPool{pool: pool}, nil</span>
+}
+
+// Close - закрывает соединение
+func (db *DBPool) Close() <span class="cov0" title="0">{
+        db.pool.Close()
+}</span>
+
+// GetPool - передает соединение
+func (db *DBPool) GetPool() *pgxpool.Pool <span class="cov0" title="0">{
+        return db.pool
+}</span>
+
+// ------------- GAMES -------------
+
+// insertIntoGames - добавляет новую игру в таблице games
+// "repository: insert game %s: %w"
+func (db *DBPool) insertIntoGames(ctx context.Context, game gameEntity) error <span class="cov8" title="1">{
+        sqlQuery := `
+        INSERT INTO games(uuid, board, with_computer, state, next_player, winner, uuid_player_first, update_at)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8);
+        `
+
+        _, err := db.pool.Exec(ctx, sqlQuery, game.UUID, game.Board, game.WithComputer, game.State, game.NextPlayer, game.Winner, game.UUIDPlayerFirst, game.UpdatedAt)
+        if err != nil </span><span class="cov8" title="1">{
+                return fmt.Errorf("repository: insert game %s: %w", game.UUID, err)
+        }</span>
+
+        <span class="cov8" title="1">return nil</span>
+}
+
+// updateGames - обновляет информацию об игре в таблице games
+// "repository: update game %s: %w"
+func (db *DBPool) updateGames(ctx context.Context, game gameEntity) error <span class="cov8" title="1">{
+        sqlQuery := `
+        UPDATE games
+        SET board = $1, state = $2, next_player = $3, winner = $4, uuid_player_second = $5, update_at = $6
+        WHERE uuid = $7;
+        `
+
+        _, err := db.pool.Exec(ctx, sqlQuery, game.Board, game.State, game.NextPlayer, game.Winner, game.UUIDPlayerSecond, game.UpdatedAt, game.UUID)
+        if err != nil </span><span class="cov8" title="1">{
+                return fmt.Errorf("repository: update game %s: %w", game.UUID, err)
+        }</span>
+
+        <span class="cov8" title="1">return nil</span>
+}
+
+// selectAvaibleGamesFromGames - получение среза игр из таблицы games
+// доступных для присоединения игроку с uuid = uuidUser
+// "repository: select game for user %s: %w"
+// "repository: scan game for user %s: %w"
+func (db *DBPool) selectAvaibleGamesFromGames(ctx context.Context, uuidUser uuid.UUID) ([]gameEntity, error) <span class="cov8" title="1">{
+        sqlQuery := `
+        SELECT id, uuid, board, with_computer, state, next_player, winner, uuid_player_first, uuid_player_second, update_at from games
+        WHERE uuid_player_first != $1 and state = 'wait users' and with_computer = false;
+        `
+
+        rows, err := db.pool.Query(ctx, sqlQuery, uuidUser)
+        if err != nil </span><span class="cov8" title="1">{
+                return []gameEntity{}, fmt.Errorf("repository: select game for user %s: %w", uuidUser, err)
+        }</span>
+        <span class="cov8" title="1">defer rows.Close()
+        games := make([]gameEntity, 0)
+
+        for rows.Next() </span><span class="cov8" title="1">{
+                var game gameEntity
+                if err := rows.Scan(&amp;game.ID, &amp;game.UUID, &amp;game.Board, &amp;game.WithComputer, &amp;game.State, &amp;game.NextPlayer, &amp;game.Winner, &amp;game.UUIDPlayerFirst, &amp;game.UUIDPlayerSecond, &amp;game.UpdatedAt); err != nil </span><span class="cov0" title="0">{
+                        return []gameEntity{}, fmt.Errorf("repository: scan game for user %s: %w", uuidUser, err)
+                }</span>
+                <span class="cov8" title="1">games = append(games, game)</span>
+        }
+
+        <span class="cov8" title="1">return games, nil</span>
+}
+
+// selectFromGames - получение информации об игре по UUID игры из таблицы games
+// ErrGameNotFound
+// "repository: select game %s: %w"
+func (db *DBPool) selectFromGames(ctx context.Context, uuid uuid.UUID) (gameEntity, error) <span class="cov8" title="1">{
+        sqlQuery := `
+        SELECT id, uuid, board, with_computer, state, next_player, winner, uuid_player_first, uuid_player_second, update_at from games
+        WHERE uuid = $1;
+        `
+
+        row := db.pool.QueryRow(ctx, sqlQuery, uuid)
+        var game gameEntity
+
+        if err := row.Scan(&amp;game.ID, &amp;game.UUID, &amp;game.Board, &amp;game.WithComputer, &amp;game.State, &amp;game.NextPlayer, &amp;game.Winner, &amp;game.UUIDPlayerFirst, &amp;game.UUIDPlayerSecond, &amp;game.UpdatedAt); err != nil </span><span class="cov8" title="1">{
+                if errors.Is(err, pgx.ErrNoRows) </span><span class="cov8" title="1">{
+                        return gameEntity{}, domain.ErrGameNotFound
+                }</span>
+                <span class="cov8" title="1">return gameEntity{}, fmt.Errorf("repository: select game %s: %w", uuid, err)</span>
+        }
+        <span class="cov8" title="1">return game, nil</span>
+}
+
+// ------------- USERS -------------
+
+// insertPlayer - добаление нового играка в БД
+// ErrLoginIncorrect
+// "repository: insert user with %s: %w"
+func (db *DBPool) insertIntoUsers(ctx context.Context, user userEntity) error <span class="cov8" title="1">{
+
+        sqlQuery := `
+        INSERT INTO users(uuid, login, password_hash, create_at)
+        VALUES ($1, $2, $3, $4);
+        `
+
+        _, err := db.pool.Exec(ctx, sqlQuery, user.UUID, user.Login, user.PasswordHash, user.CreateAt)
+        var pgErr *pgconn.PgError
+        if errors.As(err, &amp;pgErr) &amp;&amp; pgErr.Code == pgerrcode.UniqueViolation </span><span class="cov8" title="1">{ // "23505"
+                return domain.ErrLoginIncorrect
+        }</span>
+        <span class="cov8" title="1">if err != nil </span><span class="cov8" title="1">{
+                return fmt.Errorf("repository: insert user with %s: %w", user.Login, err)
+        }</span>
+
+        <span class="cov8" title="1">return nil</span>
+}
+
+// selectFromUsersWithLogin - получение информации об игроке по логину
+// ErrUserNotFound
+// "repository: select user with %s: %w"
+func (db *DBPool) selectFromUsersWithLogin(ctx context.Context, login string) (userEntity, error) <span class="cov8" title="1">{
+        sqlQuery := `
+        SELECT id, uuid, login, password_hash, create_at from users
+        WHERE login = $1;
+        `
+
+        row := db.pool.QueryRow(ctx, sqlQuery, login)
+        var user userEntity
+
+        if err := row.Scan(&amp;user.ID, &amp;user.UUID, &amp;user.Login, &amp;user.PasswordHash, &amp;user.CreateAt); err != nil </span><span class="cov8" title="1">{
+                if errors.Is(err, pgx.ErrNoRows) </span><span class="cov8" title="1">{
+                        return userEntity{}, domain.ErrUserNotFound
+                }</span>
+                <span class="cov8" title="1">return userEntity{}, fmt.Errorf("repository: select user with %s: %w", login, err)</span>
+        }
+
+        <span class="cov8" title="1">return user, nil</span>
+}
+
+// selectFromUsersWithUUID - получение информации об игроке по uuid
+// ErrUserNotFound
+// "repository: select user with %s: %w"
+func (db *DBPool) selectFromUsersWithUUID(ctx context.Context, uuidUser uuid.UUID) (userEntity, error) <span class="cov0" title="0">{
+        sqlQuery := `
+        SELECT id, uuid, login, password_hash, create_at from users
+        WHERE uuid = $1;
+        `
+
+        row := db.pool.QueryRow(ctx, sqlQuery, uuidUser)
+        var user userEntity
+
+        if err := row.Scan(&amp;user.ID, &amp;user.UUID, &amp;user.Login, &amp;user.PasswordHash, &amp;user.CreateAt); err != nil </span><span class="cov0" title="0">{
+                if errors.Is(err, pgx.ErrNoRows) </span><span class="cov0" title="0">{
+                        return userEntity{}, domain.ErrUserNotFound
+                }</span>
+                <span class="cov0" title="0">return userEntity{}, fmt.Errorf("repository: select user with %s: %w", uuidUser, err)</span>
+        }
+        <span class="cov0" title="0">return user, nil</span>
+}
+</pre>
+		
+		<pre class="file" id="file2" style="display: none">package datasource
+
+import (
+        "src/internal/domain"
+        "strconv"
+        "strings"
+)
+
+// toEntity - преобразует domain.Game в GameEntity
+func toEntityGame(game domain.Game) gameEntity <span class="cov8" title="1">{
+        return gameEntity{
+                UUID:         game.UUID,
+                Board:        toEntityBoard(game.Board),
+                WithComputer: game.WithComputer,
+                State:        game.State,
+                NextPlayer:   game.NextPlayer,
+                Winner:       game.Winner,
+
+                UUIDPlayerFirst:  game.UUIDPlayerFirst,
+                UUIDPlayerSecond: game.UUIDPlayerSecond,
+
+                UpdatedAt: game.UpdatedAt,
+        }
+}</span>
+
+// toDomain - преобразует GameEntity в domain.Game
+// если ID в хранилище не парситься в UUID, то возвращается ошибка
+func toDomainGame(entity gameEntity) (domain.Game, error) <span class="cov8" title="1">{
+
+        dboard, err := toDomainBoard(entity.Board)
+        if err != nil </span><span class="cov0" title="0">{
+                return domain.Game{}, err
+        }</span>
+
+        <span class="cov8" title="1">return domain.Game{
+                ID:           entity.ID,
+                UUID:         entity.UUID,
+                Board:        dboard,
+                WithComputer: entity.WithComputer,
+                State:        entity.State,
+                NextPlayer:   entity.NextPlayer,
+                Winner:       entity.Winner,
+
+                UUIDPlayerFirst:  entity.UUIDPlayerFirst,
+                UUIDPlayerSecond: entity.UUIDPlayerSecond,
+
+                UpdatedAt: entity.UpdatedAt,
+        }, nil</span>
+}
+
+// toDomainBoard - преобразует строку в domain.Board
+// если строка не парситься в int, то возвращается ошибка
+func toDomainBoard(board string) (domain.Board, error) <span class="cov8" title="1">{
+        parts := strings.Split(board, ", ")
+        var dboard domain.Board
+        n := 0
+
+        for i := 0; i &lt; 3; i++ </span><span class="cov8" title="1">{
+                for j := 0; j &lt; 3; j++ </span><span class="cov8" title="1">{
+                        number, err := strconv.Atoi(parts[n])
+                        if err != nil </span><span class="cov8" title="1">{
+                                return domain.Board{}, err
+                        }</span>
+                        <span class="cov8" title="1">dboard[i][j] = number
+                        n++</span>
+                }
+        }
+
+        <span class="cov8" title="1">return dboard, nil</span>
+}
+
+// toEntityBoard - преобразует domain.Board в строку
+func toEntityBoard(board domain.Board) string <span class="cov8" title="1">{
+        strArray := make([]string, 9)
+        i := 0
+        for _, r := range board </span><span class="cov8" title="1">{
+                for _, value := range r </span><span class="cov8" title="1">{
+                        strArray[i] = strconv.Itoa(value)
+                        i++
+                }</span>
+        }
+        <span class="cov8" title="1">result := strings.Join(strArray, ", ")
+        return result</span>
+}
+
+// toUserEntity - преобразует domain.User в userEntity
+func toUserEntity(user domain.User) userEntity <span class="cov8" title="1">{
+        return userEntity{
+                UUID:         user.UUID,
+                Login:        user.Login,
+                PasswordHash: user.PasswordHash,
+                CreateAt:     user.CreateAt,
+        }
+}</span>
+
+// toDomainUser - преобразует userEntity в domain.User
+func toDomainUser(entity userEntity) domain.User <span class="cov8" title="1">{
+        return domain.User{
+                ID:           entity.ID,
+                UUID:         entity.UUID,
+                Login:        entity.Login,
+                PasswordHash: entity.PasswordHash,
+                CreateAt:     entity.CreateAt,
+        }
+}</span>
+</pre>
+		
+		<pre class="file" id="file3" style="display: none">package datasource
+
+import (
+        "context"
+        "fmt"
+        "src/internal/domain"
+
+        uuid "github.com/google/uuid"
+)
+
+// gameRepository - реализация domain.GameRepository поверх gameStorage
+type gameRepository struct {
+        gs gameStorage
+}
+
+// NewGameRepository - конструктор для di
+func NewGameRepository(db *DBPool) domain.GameRepository <span class="cov0" title="0">{
+        return &amp;gameRepository{gs: db}
+}</span>
+
+/*
+SaveNewGame - сохранение новой игры
+Возвращает новую игру
+Ошибки:
+ErrContextCanceled
+"repository: insert game %s: %w"
+"repository: failed select game after save: %w"
+"repository: select game %s: %w"
+"repository: failed to map game entity to domain: error"
+*/
+func (r *gameRepository) SaveNewGame(ctx context.Context, game domain.Game) (domain.Game, error) <span class="cov8" title="1">{
+        if err := ctx.Err(); err != nil </span><span class="cov8" title="1">{
+                return domain.Game{}, domain.ErrContextCanceled
+        }</span>
+
+        <span class="cov8" title="1">gameEntity := toEntityGame(game)
+
+        err := r.gs.insertIntoGames(ctx, gameEntity)
+        if err != nil </span><span class="cov8" title="1">{
+                return domain.Game{}, err
+        }</span>
+
+        <span class="cov8" title="1">gameEntity, err = r.gs.selectFromGames(ctx, game.UUID)
+        if err != nil </span><span class="cov8" title="1">{
+                if err == domain.ErrGameNotFound </span><span class="cov8" title="1">{
+                        return domain.Game{}, fmt.Errorf("repository: failed select game after save: %w", err)
+                }</span>
+                <span class="cov8" title="1">return domain.Game{}, err</span>
+        }
+
+        <span class="cov8" title="1">newGame, err := toDomainGame(gameEntity)
+        if err != nil </span><span class="cov0" title="0">{
+                return domain.Game{}, fmt.Errorf("repository: failed to map game entity to domain: %w", err)
+        }</span>
+
+        <span class="cov8" title="1">return newGame, err</span>
+}
+
+/*
+Save - сохраняет игру
+Ошибки:
+ErrContextCanceled
+"repository: update game %s: %w"
+*/
+func (r *gameRepository) Save(ctx context.Context, game domain.Game) error <span class="cov8" title="1">{
+        if err := ctx.Err(); err != nil </span><span class="cov8" title="1">{
+                return domain.ErrContextCanceled
+        }</span>
+
+        <span class="cov8" title="1">gameEntity := toEntityGame(game)
+
+        if err := r.gs.updateGames(ctx, gameEntity); err != nil </span><span class="cov8" title="1">{
+                return err
+        }</span>
+
+        <span class="cov8" title="1">return nil</span>
+}
+
+/*
+GetAvailableGames - получение среза доступных игр для присоединения игрока с определенным uuid
+Возвращает срез игр
+Ошибки:
+ErrContextCanceled
+"repository: select game for user %s: %w"
+"repository: scan game for user %s: %w"
+*/
+func (r *gameRepository) GetAvailableGames(ctx context.Context, uuidUser uuid.UUID) ([]domain.Game, error) <span class="cov8" title="1">{
+        if err := ctx.Err(); err != nil </span><span class="cov8" title="1">{
+                return []domain.Game{}, domain.ErrContextCanceled
+        }</span>
+
+        <span class="cov8" title="1">entityGames, err := r.gs.selectAvaibleGamesFromGames(ctx, uuidUser)
+        if err != nil </span><span class="cov8" title="1">{
+                return []domain.Game{}, err
+        }</span>
+
+        <span class="cov8" title="1">domainGames := make([]domain.Game, 0)
+        for i := range entityGames </span><span class="cov8" title="1">{
+                domainGame, err := toDomainGame(entityGames[i])
+                if err != nil </span><span class="cov0" title="0">{
+                        return []domain.Game{}, fmt.Errorf("repository: failed to map game entity to domain: %w", err)
+                }</span>
+                <span class="cov8" title="1">domainGames = append(domainGames, domainGame)</span>
+        }
+
+        <span class="cov8" title="1">return domainGames, nil</span>
+}
+
+/*
+Get - получает информацию об игре по UUID игры
+Возвращает игру
+Ошибки:
+ErrContextCanceled
+ErrGameNotFound
+"repository: select game %s: %w"
+*/
+func (r *gameRepository) Get(ctx context.Context, uuid uuid.UUID) (domain.Game, error) <span class="cov8" title="1">{
+        if err := ctx.Err(); err != nil </span><span class="cov8" title="1">{
+                return domain.Game{}, domain.ErrContextCanceled
+        }</span>
+
+        <span class="cov8" title="1">var (
+                entity gameEntity
+                err    error
+        )
+
+        entity, err = r.gs.selectFromGames(ctx, uuid)
+        if err != nil </span><span class="cov8" title="1">{
+                return domain.Game{}, err
+        }</span>
+
+        <span class="cov8" title="1">v, err := toDomainGame(entity)
+        if err != nil </span><span class="cov0" title="0">{
+                return domain.Game{}, fmt.Errorf("repository: failed to map game entity to domain: %w", err)
+        }</span>
+
+        <span class="cov8" title="1">return v, nil</span>
+}
+
+// gameRepository - реализация domain.GameRepository поверх gameStorage
+type userRepository struct {
+        gs gameStorage
+}
+
+// NewUserRepository - конструктор для di
+func NewUserRepository(db *DBPool) domain.UserRepository <span class="cov0" title="0">{
+        return &amp;userRepository{gs: db}
+}</span>
+
+/*
+Save - сохраняет нового пользователя
+Ошибки:
+ErrContextCanceled
+ErrLoginIncorrect
+"repository: insert user with %s: %w"
+*/
+func (u *userRepository) Save(ctx context.Context, user domain.User) error <span class="cov8" title="1">{
+        if err := ctx.Err(); err != nil </span><span class="cov8" title="1">{
+                return domain.ErrContextCanceled
+        }</span>
+
+        <span class="cov8" title="1">userEntity := toUserEntity(user)
+
+        err := u.gs.insertIntoUsers(ctx, userEntity)
+        if err != nil </span><span class="cov8" title="1">{
+                return err
+        }</span>
+
+        <span class="cov8" title="1">return nil</span>
+}
+
+/*
+Get - получает данные о пользователе по логину или по UUID
+Возвращает
+Ошибки:
+ErrContextCanceled
+ErrUserNotFound
+"repository: select user with %s: %w"
+*/
+func (u *userRepository) Get(ctx context.Context, login string, uuidUser uuid.UUID) (domain.User, error) <span class="cov8" title="1">{
+        if err := ctx.Err(); err != nil </span><span class="cov8" title="1">{
+                return domain.User{}, domain.ErrContextCanceled
+        }</span>
+
+        <span class="cov8" title="1">var (
+                userEntity userEntity
+                err        error
+        )
+
+        if login != "" </span><span class="cov8" title="1">{
+                userEntity, err = u.gs.selectFromUsersWithLogin(ctx, login)
+                if err != nil </span><span class="cov8" title="1">{
+                        return domain.User{}, err
+                }</span>
+        } else<span class="cov8" title="1"> {
+                userEntity, err = u.gs.selectFromUsersWithUUID(ctx, uuidUser)
+                if err != nil </span><span class="cov8" title="1">{
+                        return domain.User{}, err
+                }</span>
+        }
+
+        <span class="cov8" title="1">domainUser := toDomainUser(userEntity)
+
+        return domainUser, nil</span>
+}
+</pre>
+		
+		<pre class="file" id="file4" style="display: none">package di
+
+import (
+        "src/internal/datasource"
+        "src/internal/domain"
+        "src/internal/web"
+
+        "go.uber.org/fx"
+)
+
+// Module - полный граф зависимостей приложения
+var Module = fx.Options(
+        fx.Provide(
+                newConfig,
+                func(cfg *Config) string <span class="cov0" title="0">{
+                        return cfg.DBDSN
+                }</span>,
+                datasource.NewDBPool,
+                datasource.NewGameRepository,
+                datasource.NewUserRepository,
+                domain.NewGameService,
+                domain.NewUserService,
+                web.NewGameHandler,
+                web.NewUserHandler,
+                web.NewUserAuthenticator,
+                newMux,
+                newServer,
+        ),
+        fx.Invoke(runServer),
+)
+</pre>
+		
+		<pre class="file" id="file5" style="display: none">package di
+
+import (
+        "context"
+        "log"
+        "net/http"
+        "src/internal/datasource"
+        "src/internal/web"
+        "time"
+
+        "go.uber.org/fx"
+)
+
+// Config - параметры сервера из переменных окружения (HTTP_ADDR, по умолчанию ":8080").
+type Config struct {
+        Addr  string
+        DBDSN string
+}
+
+// newConfig - задает порт
+func newConfig() *Config <span class="cov0" title="0">{
+        return &amp;Config{Addr: "localhost:8081",
+                DBDSN: "postgres://postgres:12345@localhost:5432/tic_tac_toe"}
+
+}</span>
+
+// newMux - создает новый мультиплексор и регистрирует маршруты
+func newMux(handlerGame *web.GameHandler, handlerUser *web.UserHandler, auth *web.UserAuthenticator) *http.ServeMux <span class="cov0" title="0">{
+        mux := http.NewServeMux()
+        handlerGame.Register(mux, auth, handlerUser)
+        return mux
+}</span>
+
+// newServer - задает данные сервера
+func newServer(cfg *Config, mux *http.ServeMux) *http.Server <span class="cov0" title="0">{
+        return &amp;http.Server{
+                Addr:         cfg.Addr,
+                Handler:      mux,
+                ReadTimeout:  5 * time.Second,
+                WriteTimeout: 10 * time.Second,
+                IdleTimeout:  120 * time.Second,
+        }
+}</span>
+
+// runServer подключает сервер к жизненному циклу fx:
+// OnStart - net.Listen + Serve в горутине, OnStop - Shutdown(ctx)
+func runServer(lc fx.Lifecycle, srv *http.Server, db *datasource.DBPool) <span class="cov0" title="0">{
+        lc.Append(fx.Hook{
+                // OnStart выполняется при запуске приложения
+                OnStart: func(ctx context.Context) error </span><span class="cov0" title="0">{
+                        if err := datasource.CreateTableUsers(ctx, db.GetPool()); err != nil </span><span class="cov0" title="0">{
+                                log.Fatalf("Failed to create users table: %v", err)
+                        }</span>
+                        <span class="cov0" title="0">if err := datasource.CreateTableGames(ctx, db.GetPool()); err != nil </span><span class="cov0" title="0">{
+                                log.Fatalf("Failed to create games table: %v", err)
+                        }</span>
+                        <span class="cov0" title="0">log.Printf("Starting HTTP server on %s", srv.Addr)
+                        // Запускаем сервер в отдельной горутине, чтобы не блокировать старт fx
+                        go func() </span><span class="cov0" title="0">{
+                                if err := srv.ListenAndServe(); err != nil &amp;&amp; err != http.ErrServerClosed </span><span class="cov0" title="0">{
+                                        log.Printf("HTTP server ListenAndServe error: %v", err)
+                                }</span>
+                        }()
+                        <span class="cov0" title="0">return nil</span>
+                },
+
+                // OnStop выполняется при завершении приложения (например, по SIGTERM)
+                OnStop: func(ctx context.Context) error <span class="cov0" title="0">{
+                        log.Println("Shutting down HTTP server...")
+                        // Graceful shutdown: дает 5 секунд на завершение текущих запросов
+                        shutdownCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
+                        defer cancel()
+                        err := srv.Shutdown(shutdownCtx)
+
+                        db.Close()
+                        return err
+                }</span>,
+        })
+}
+</pre>
+		
+		<pre class="file" id="file6" style="display: none">package domain
+
+// IsFinished сообщает, окончена ли игра, и кто победил:
+// player = X, O или Empty при ничьей / незавершённой игре.
+func (s *gameService) isFinished(board Board) (bool, int) <span class="cov8" title="1">{
+        var finished bool
+        var player int
+
+        if finished = s.isWin(board, X); finished </span><span class="cov8" title="1">{
+                player = X
+        }</span> else<span class="cov8" title="1"> if finished = s.isWin(board, O); finished </span><span class="cov8" title="1">{
+                player = O
+        }</span> else<span class="cov8" title="1"> if finished = s.isFilledBoard(board); finished </span><span class="cov8" title="1">{
+                player = Empty
+        }</span>
+
+        <span class="cov8" title="1">return finished, player</span>
+}
+
+// isWin проверяет выйграл ли определенный игрок
+func (s *gameService) isWin(board Board, winner int) bool <span class="cov8" title="1">{
+        var (
+                count int
+                win   bool
+        )
+
+        //Проходим по горизонталям
+        for idx := range board </span><span class="cov8" title="1">{
+                for _, val := range board[idx] </span><span class="cov8" title="1">{
+                        if val == winner </span><span class="cov8" title="1">{
+                                count++
+                        }</span>
+                        <span class="cov8" title="1">if count == Size </span><span class="cov8" title="1">{
+                                win = true
+                                return win
+                        }</span>
+                }
+                <span class="cov8" title="1">count = 0</span>
+        }
+
+        //Проходим по вертикалям
+        <span class="cov8" title="1">for i := 0; i &lt; Size; i++ </span><span class="cov8" title="1">{
+                for idx := range board </span><span class="cov8" title="1">{
+                        if board[idx][i] == winner </span><span class="cov8" title="1">{
+                                count++
+                        }</span>
+                        <span class="cov8" title="1">if count == Size </span><span class="cov8" title="1">{
+                                win = true
+                                return win
+                        }</span>
+                }
+                <span class="cov8" title="1">count = 0</span>
+        }
+
+        //Крест-накрест
+        <span class="cov8" title="1">if (board[0][0] == winner &amp;&amp; board[1][1] == winner &amp;&amp; board[2][2] == winner) ||
+                (board[0][2] == winner &amp;&amp; board[1][1] == winner &amp;&amp; board[2][0] == winner) </span><span class="cov8" title="1">{
+                win = true
+                return win
+        }</span>
+
+        <span class="cov8" title="1">return win</span>
+}
+
+// isFilledBoard проверяет заполнено ли поле полностью (в случаях ничьи бывает)
+func (s *gameService) isFilledBoard(board Board) bool <span class="cov8" title="1">{
+        var (
+                count int
+                over  bool
+        )
+
+        for idx := range board </span><span class="cov8" title="1">{
+                for _, val := range board[idx] </span><span class="cov8" title="1">{
+                        if val == 0 </span><span class="cov8" title="1">{
+                                count++
+                        }</span>
+                }
+        }
+
+        <span class="cov8" title="1">if count == 0 </span><span class="cov8" title="1">{
+                over = true
+        }</span>
+
+        <span class="cov8" title="1">return over</span>
+}
+</pre>
+		
+		<pre class="file" id="file7" style="display: none">package domain
+
+import (
+        "context"
+        "time"
+
+        uuid "github.com/google/uuid"
+)
+
+// pos - расположение на игровом поле
+type pos struct {
+        i int
+        j int
+}
+
+/*
+NextMove - выполняет ход игроком
+Если следующий ход компьютера, то он выполняется с помощью алгоритма минимакс
+Возвращает игру с обновлённым полем.
+Ошибки:
+ErrContextCanceled - игра прерывается
+ErrGameFinished - игра была ранее окончена
+ErrWaitOpponent - второй игрок еще не присоеденился к игре
+ErrGameNotFound - игра не найдена
+ErrDoesntHaveSuchUser - в этой игре нет такого пользователя
+ErrOpponentsMove - ход аппонента
+ErrInvalidBoard - поле нарушает правила или изменены прошлые ходы
+ErrInvalidCell - недопустимое значение клетки
+*/
+func (s *gameService) NextMove(ctx context.Context, board Board, uuidGame uuid.UUID, uuidUser uuid.UUID) (Game, error) <span class="cov8" title="1">{
+        if err := ctx.Err(); err != nil </span><span class="cov8" title="1">{
+                return Game{}, ErrContextCanceled
+        }</span>
+
+        // Сперва получим инфу об игре вместе с игроком
+        <span class="cov8" title="1">game, err := s.repo.Get(ctx, uuidGame)
+        if err != nil </span><span class="cov8" title="1">{
+                return Game{}, err
+        }</span>
+
+        // Проверяем состояние игры
+        <span class="cov8" title="1">switch game.State </span>{
+        case StateWaitUsers:<span class="cov8" title="1">
+                return Game{}, ErrWaitOpponent</span>
+        case StateDraw:<span class="cov8" title="1">
+                return Game{}, ErrGameFinished</span>
+        case StateWin:<span class="cov8" title="1">
+                return Game{}, ErrGameFinished</span>
+        }
+
+        // Сверяем UUID игрока
+        <span class="cov8" title="1">isFirst := game.UUIDPlayerFirst == uuidUser
+        isSecond := game.UUIDPlayerSecond != nil &amp;&amp; *game.UUIDPlayerSecond == uuidUser
+        // Данный игрок в эту игру не играет
+        if !isFirst &amp;&amp; !isSecond </span><span class="cov8" title="1">{
+                return Game{}, ErrDoesntHaveSuchUser
+        }</span>
+        <span class="cov8" title="1">if game.NextPlayer != nil &amp;&amp; *game.NextPlayer != uuidUser </span><span class="cov8" title="1">{
+                return Game{}, ErrOpponentsMove
+        }</span>
+
+        <span class="cov8" title="1">var playerCellValue int
+        var playerNextMove uuid.UUID
+
+        // Устанавливаем чем он должен ходить
+        if game.UUIDPlayerFirst == uuidUser </span><span class="cov8" title="1">{
+                playerCellValue = X
+                if game.UUIDPlayerSecond != nil </span><span class="cov8" title="1">{
+                        playerNextMove = *game.UUIDPlayerSecond
+                }</span>
+        } else<span class="cov8" title="1"> {
+                playerCellValue = O
+                playerNextMove = game.UUIDPlayerFirst
+        }</span>
+
+        // Проверяем что ход допустимый
+        <span class="cov8" title="1">if err := s.validate(board, game.Board, playerCellValue); err != nil </span><span class="cov8" title="1">{
+                return Game{}, err
+        }</span>
+
+        <span class="cov8" title="1">game.Board = board
+
+        // Проверяем не окончена ли игра после этого хода
+        if finished, winner := s.isFinished(game.Board); finished </span><span class="cov8" title="1">{
+                switch winner </span>{
+                case Empty:<span class="cov0" title="0">
+                        game.State = StateDraw</span>
+                default:<span class="cov8" title="1">
+                        game.State = StateWin
+                        game.Winner = &amp;uuidUser</span>
+                }
+                <span class="cov8" title="1">game.UpdatedAt = time.Now()
+                if err := s.repo.Save(ctx, game); err != nil </span><span class="cov0" title="0">{
+                        return Game{}, err
+                }</span>
+                <span class="cov8" title="1">return game, nil</span>
+        }
+
+        // Если игра с компьютером
+        <span class="cov8" title="1">if game.WithComputer </span><span class="cov8" title="1">{
+                return s.nextMoveWithComputer(ctx, game)
+        }</span>
+
+        // Записываем, что следующий ход за оппонентом
+        <span class="cov8" title="1">game.State = StateNextMove
+        game.NextPlayer = &amp;playerNextMove
+        game.UpdatedAt = time.Now()
+        if err := s.repo.Save(ctx, game); err != nil </span><span class="cov0" title="0">{
+                return Game{}, err
+        }</span>
+
+        <span class="cov8" title="1">return game, nil</span>
+}
+
+/*
+nextMoveWithComputer -совершает следующий ход компьютером и записывает результат
+Возращает новую игру
+Ошибки:
+- ErrContextCanceled
+- "repository: update game %s: %w"
+*/
+func (s *gameService) nextMoveWithComputer(ctx context.Context, game Game) (Game, error) <span class="cov8" title="1">{
+        bestScore := -1000
+        var bestPosition pos
+
+        // Перебираем все возможные ходы для O (компьютер)
+        for _, position := range s.searchAllOptions(game.Board) </span><span class="cov8" title="1">{
+                newBoard := game.Board
+                newBoard[position.i][position.j] = O
+
+                //Уходим в рекурсию для подсчета выгодности данного хода
+                score, err := s.minimax(ctx, newBoard, 0, false)
+                if err != nil </span><span class="cov8" title="1">{
+                        return Game{}, err
+                }</span>
+
+                // Если счет лучший, то сохраняем
+                <span class="cov8" title="1">if score &gt; bestScore </span><span class="cov8" title="1">{
+                        bestScore = score
+                        bestPosition = position
+                }</span>
+        }
+
+        // Устанавливаем позицию в копию и возвращаем
+        <span class="cov8" title="1">newGame := game
+        newGame.Board[bestPosition.i][bestPosition.j] = O
+        newGame.UpdatedAt = time.Now()
+
+        if finished, winner := s.isFinished(newGame.Board); finished </span><span class="cov8" title="1">{
+                switch winner </span>{
+                case Empty:<span class="cov8" title="1">
+                        newGame.State = StateDraw</span>
+                default:<span class="cov8" title="1">
+                        newGame.State = StateWin</span>
+                }
+        }
+
+        <span class="cov8" title="1">if err := s.repo.Save(ctx, newGame); err != nil </span><span class="cov8" title="1">{
+                return Game{}, err
+        }</span>
+
+        <span class="cov8" title="1">return newGame, nil</span>
+}
+
+// minimax возвращает оценку позиции для O: чем выше, тем лучше.
+// Флаг isMax показывает чей ход, компьютера или игрока
+func (s *gameService) minimax(ctx context.Context, b Board, depth int, isMax bool) (int, error) <span class="cov8" title="1">{
+        if err := ctx.Err(); err != nil </span><span class="cov8" title="1">{
+                return 0, ErrContextCanceled
+        }</span>
+
+        // В зависимости от выиграшевого игрока уcтанавливаем счёт с поправкой на глубину
+        <span class="cov8" title="1">if finished, winner := s.isFinished(b); finished </span><span class="cov8" title="1">{
+                switch winner </span>{
+                case O:<span class="cov8" title="1">
+                        return 10 - depth, nil</span>
+                case X:<span class="cov8" title="1">
+                        return depth - 10, nil</span>
+                default:<span class="cov8" title="1">
+                        return 0, nil</span>
+                }
+        }
+
+        //Уставливаем счет и игрока в зависимости от isMax
+        <span class="cov8" title="1">bestScore := -1000
+        player := O
+        if !isMax </span><span class="cov8" title="1">{
+                bestScore = 1000
+                player = X
+        }</span>
+
+        // Перебираем все позиции и ищем самую лучшую
+        <span class="cov8" title="1">for _, position := range s.searchAllOptions(b) </span><span class="cov8" title="1">{
+                newBoard := b
+                newBoard[position.i][position.j] = player
+
+                score, err := s.minimax(ctx, newBoard, depth+1, !isMax)
+                if err != nil </span><span class="cov0" title="0">{
+                        return 0, ErrContextCanceled
+                }</span>
+
+                <span class="cov8" title="1">if isMax &amp;&amp; score &gt; bestScore </span><span class="cov8" title="1">{
+                        bestScore = score
+                }</span> else<span class="cov8" title="1"> if !isMax &amp;&amp; score &lt; bestScore </span><span class="cov8" title="1">{
+                        bestScore = score
+                }</span>
+        }
+
+        // Возвращаем счет для определенной позиции
+        <span class="cov8" title="1">return bestScore, nil</span>
+}
+
+// searchAllOptions - ищет все доступные пустые клетки на доске.
+func (s *gameService) searchAllOptions(board Board) []pos <span class="cov8" title="1">{
+        options := make([]pos, 0, 9)
+        for i := range board </span><span class="cov8" title="1">{
+                for j := range board[i] </span><span class="cov8" title="1">{
+                        if board[i][j] == 0 </span><span class="cov8" title="1">{
+                                options = append(options, pos{i, j})
+                        }</span>
+                }
+        }
+        <span class="cov8" title="1">return options</span>
+}
+</pre>
+		
+		<pre class="file" id="file8" style="display: none">package domain
+
+import (
+        "context"
+        "time"
+
+        uuid "github.com/google/uuid"
+)
+
+/*
+CreateNewGame - создаёт новую игру с компьютером или другим игроком
+Возвращает информацию о новой игре
+Ошибки:
+ErrContextCanceled
+"repository: insert game %s: %w"
+"repository: failed select game after save: %w"
+"repository: select game %s: %w"
+"repository: failed to map game entity to domain: error"
+*/
+func (s *gameService) CreateNewGame(ctx context.Context, withComputer bool, uuidUser uuid.UUID) (Game, error) <span class="cov8" title="1">{
+        if err := ctx.Err(); err != nil </span><span class="cov8" title="1">{
+                return Game{}, ErrContextCanceled
+        }</span>
+
+        <span class="cov8" title="1">state := StateNextMove
+        if !withComputer </span><span class="cov8" title="1">{
+                state = StateWaitUsers
+        }</span>
+
+        <span class="cov8" title="1">game := Game{
+                UUID: uuid.New(),
+                Board: Board{
+                        {0, 0, 0},
+                        {0, 0, 0},
+                        {0, 0, 0},
+                },
+                WithComputer:    withComputer,
+                State:           state,
+                UUIDPlayerFirst: uuidUser,
+
+                UpdatedAt: time.Now(),
+        }
+
+        newGame, err := s.repo.SaveNewGame(ctx, game)
+        if err != nil </span><span class="cov8" title="1">{
+                return Game{}, err
+        }</span>
+        <span class="cov8" title="1">return newGame, nil</span>
+}
+
+/*
+GetAvailableGames - находит и возвращает все доступные игры
+для присоединения игрока с определённым UUID, или ошибку
+Ошибки:
+ErrContextCanceled
+"repository: select game for user %s: %w"
+"repository: scan game for user %s: %w"
+*/
+func (s *gameService) GetAvailableGames(ctx context.Context, uuidUser uuid.UUID) ([]Game, error) <span class="cov8" title="1">{
+        if err := ctx.Err(); err != nil </span><span class="cov8" title="1">{
+                return []Game{}, ErrContextCanceled
+        }</span>
+
+        <span class="cov8" title="1">games, err := s.repo.GetAvailableGames(ctx, uuidUser)
+        if err != nil </span><span class="cov8" title="1">{
+                return []Game{}, err
+        }</span>
+
+        <span class="cov8" title="1">return games, nil</span>
+}
+
+/*
+JoinUser - присоединяет пользователя к игре
+В случае успеха возвращает измененную игру
+Ошибки:
+ErrContextCanceled
+ErrGameNotFound
+"repository: select game %s: %w"
+ErrAddUser
+
+----Тут гонка возникает!!!!!!!!!!!!!!!
+игра не найдена, к данной игре нельзя добавить пользователя,
+context.Canceled, или иная неописанная ошибка
+*/
+func (s *gameService) JoinUser(ctx context.Context, uuidUser uuid.UUID, uuidGame uuid.UUID) (Game, error) <span class="cov0" title="0">{
+        if err := ctx.Err(); err != nil </span><span class="cov0" title="0">{
+                return Game{}, ErrContextCanceled
+        }</span>
+        // -------------!!!!!!!!!!!!!!!!!!!!!!!!-----------------
+        // Тут пишем одну функцию JoinUser,
+        // внутри запроса проверяем все необходимые данные
+        <span class="cov0" title="0">game, err := s.repo.Get(ctx, uuidGame)
+        if err != nil </span><span class="cov0" title="0">{
+                return Game{}, err
+        }</span>
+
+        // ErrAddUser
+        <span class="cov0" title="0">if game.State != StateWaitUsers ||
+                game.UUIDPlayerSecond != nil ||
+                game.WithComputer ||
+                game.UUIDPlayerFirst == uuidUser </span><span class="cov0" title="0">{
+                return Game{}, ErrAddUser
+        }</span>
+
+        <span class="cov0" title="0">game.State = StateNextMove
+        game.NextPlayer = &amp;game.UUIDPlayerFirst
+        game.UUIDPlayerSecond = &amp;uuidUser
+        game.UpdatedAt = time.Now()
+
+        if err := s.repo.Save(ctx, game); err != nil </span><span class="cov0" title="0">{
+                return Game{}, err
+        }</span>
+
+        <span class="cov0" title="0">newGame, err := s.repo.Get(ctx, uuidGame)
+        if err != nil </span><span class="cov0" title="0">{
+                return Game{}, err
+        }</span>
+
+        <span class="cov0" title="0">return newGame, nil</span>
+}
+
+/*
+GetGame - получает информацию об игре
+Ошибки:
+ErrContextCanceled - игра прерывается
+ErrGameNotFound - игра не найдена
+"repository: select game %s: %w"
+ErrDoesntHaveSuchUser - в этой игре нет такого пользователя
+*/
+func (s *gameService) GetGame(ctx context.Context, uuidGame uuid.UUID, uuidUser uuid.UUID) (Game, error) <span class="cov8" title="1">{
+        if err := ctx.Err(); err != nil </span><span class="cov8" title="1">{
+                return Game{}, ErrContextCanceled
+        }</span>
+
+        <span class="cov8" title="1">game, err := s.repo.Get(ctx, uuidGame)
+        if err != nil </span><span class="cov8" title="1">{
+                return Game{}, err
+        }</span>
+
+        <span class="cov8" title="1">if game.UUIDPlayerFirst != uuidUser &amp;&amp; *game.UUIDPlayerSecond != uuidUser </span><span class="cov8" title="1">{
+                return Game{}, ErrDoesntHaveSuchUser
+        }</span>
+
+        <span class="cov8" title="1">return game, nil</span>
+}
+</pre>
+		
+		<pre class="file" id="file9" style="display: none">package domain
+
+// gameService - реализация GameService.
+type gameService struct {
+        repo GameRepository
+}
+
+// NewGameService - конструктор для di. Принимает интерфейс репозитория.
+// func NewGameService(repo GameRepository) GameService
+func NewGameService(repo GameRepository) GameService <span class="cov8" title="1">{
+        return &amp;gameService{
+                repo: repo,
+        }
+}</span>
+
+// userService - реализация UserService.
+type userService struct {
+        repo UserRepository
+}
+
+// NewUserService - конструктор для di. Принимает интерфейс репозитория.
+func NewUserService(repo UserRepository) UserService <span class="cov8" title="1">{
+        return &amp;userService{
+                repo: repo,
+        }
+}</span>
+</pre>
+		
+		<pre class="file" id="file10" style="display: none">package domain
+
+import (
+        "context"
+        "fmt"
+        "time"
+
+        "github.com/google/uuid"
+        "golang.org/x/crypto/bcrypt"
+)
+
+/*
+Register - регистрирует нового пользователя
+возвращает факт успешной регистрации
+Ошибки:
+ErrContextCanceled
+"domain: faled to generate password hash %w"
+ErrLoginIncorrect
+"repository: insert user with %s: %w"
+"repository: select user with %s: %w"
+"domain: faled to get user %w"
+*/
+func (u *userService) Register(ctx context.Context, signUpRequest SignUpRequest) (User, error) <span class="cov8" title="1">{
+        if err := ctx.Err(); err != nil </span><span class="cov0" title="0">{
+                return User{}, ErrContextCanceled
+        }</span>
+
+        <span class="cov8" title="1">passwordHash, err := bcrypt.GenerateFromPassword([]byte(signUpRequest.Password), 10)
+        if err != nil </span><span class="cov0" title="0">{
+                return User{}, fmt.Errorf("domain: faled to generate password hash %w", err)
+        }</span>
+
+        <span class="cov8" title="1">user := User{
+                UUID:         uuid.New(),
+                Login:        signUpRequest.Login,
+                PasswordHash: string(passwordHash),
+                CreateAt:     time.Now(),
+        }
+
+        if err := u.repo.Save(ctx, user); err != nil </span><span class="cov8" title="1">{
+                return User{}, err
+        }</span>
+
+        <span class="cov8" title="1">user, err = u.repo.Get(ctx, signUpRequest.Login, uuid.UUID{})
+        if err != nil </span><span class="cov0" title="0">{
+                if err == ErrUserNotFound </span><span class="cov0" title="0">{
+                        return User{}, fmt.Errorf("domain: faled to get user %w", err)
+
+                }</span>
+                <span class="cov0" title="0">return User{}, err</span>
+        }
+
+        <span class="cov8" title="1">user.PasswordHash = ""
+
+        return user, nil</span>
+}
+
+/*
+LogIn - авторизирует пользователя
+возвращает UUIDпользователя
+Ошибки:
+ErrContextCanceled
+ErrLoginOrPasswordIncorrect
+"repository: select user with %s: %w"
+*/
+func (u *userService) LogIn(ctx context.Context, signUpRequest SignUpRequest) (uuid.UUID, error) <span class="cov8" title="1">{
+        if err := ctx.Err(); err != nil </span><span class="cov0" title="0">{
+                if err == ErrUserNotFound </span><span class="cov0" title="0">{
+                        return uuid.UUID{}, ErrContextCanceled
+                }</span>
+                <span class="cov0" title="0">return uuid.UUID{}, err</span>
+        }
+
+        <span class="cov8" title="1">user, err := u.repo.Get(ctx, signUpRequest.Login, uuid.UUID{})
+        if err != nil </span><span class="cov8" title="1">{
+                return uuid.UUID{}, ErrLoginOrPasswordIncorrect
+        }</span>
+
+        <span class="cov8" title="1">if err := bcrypt.CompareHashAndPassword([]byte(user.PasswordHash), []byte(signUpRequest.Password)); err != nil </span><span class="cov8" title="1">{
+                return uuid.UUID{}, ErrLoginOrPasswordIncorrect
+        }</span>
+
+        <span class="cov8" title="1">return user.UUID, nil</span>
+}
+
+/*
+GetUserInfo - получение информации о пользователе по UUID пользователя
+Возвращает информацию о пользователе
+Ошибки:
+ErrContextCanceled
+ErrUserNotFound
+"repository: select user with %s: %w"
+*/
+func (u *userService) GetUserInfo(ctx context.Context, uuidUser uuid.UUID) (User, error) <span class="cov0" title="0">{
+        if err := ctx.Err(); err != nil </span><span class="cov0" title="0">{
+                return User{}, ErrContextCanceled
+        }</span>
+
+        <span class="cov0" title="0">user, err := u.repo.Get(ctx, "", uuidUser)
+        if err != nil </span><span class="cov0" title="0">{
+                return User{}, err
+        }</span>
+
+        <span class="cov0" title="0">user.PasswordHash = ""
+        return user, nil</span>
+}
+</pre>
+		
+		<pre class="file" id="file11" style="display: none">package domain
+
+// Validate - проверяет не изменены ли предыдущие ходы и новое значение равно только playerCellValue
+// ErrInvalidCell - значения вне диапозона
+// ErrInvalidBoard - значение не playerCellValue, больше одного изменения или поле не совпадает
+func (s *gameService) validate(incoming, stored Board, playerCellValue int) error <span class="cov8" title="1">{
+        var count int
+
+        for i := range stored </span><span class="cov8" title="1">{
+                for j := range stored[i] </span><span class="cov8" title="1">{
+                        if incoming[i][j] &gt; O || incoming[i][j] &lt; Empty </span><span class="cov8" title="1">{
+                                return ErrInvalidCell
+                        }</span>
+                        <span class="cov8" title="1">if stored[i][j] == Empty &amp;&amp; incoming[i][j] != Empty </span><span class="cov8" title="1">{
+                                if incoming[i][j] != playerCellValue </span><span class="cov8" title="1">{
+                                        return ErrInvalidBoard
+                                }</span>
+                                <span class="cov8" title="1">count++</span>
+                        }
+                        <span class="cov8" title="1">if stored[i][j] != Empty &amp;&amp; stored[i][j] != incoming[i][j] </span><span class="cov8" title="1">{
+                                return ErrInvalidBoard
+                        }</span>
+                }
+        }
+
+        <span class="cov8" title="1">if count != 1 </span><span class="cov8" title="1">{
+                return ErrInvalidBoard
+        }</span>
+
+        <span class="cov8" title="1">return nil</span>
+}
+</pre>
+		
+		<pre class="file" id="file12" style="display: none">package web
+
+import (
+        "context"
+        "encoding/json"
+        "errors"
+        "net/http"
+        "src/internal/domain"
+
+        uuid "github.com/google/uuid"
+)
+
+// GameHandler - HTTP-обработчик
+type GameHandler struct {
+        gameService domain.GameService
+}
+
+// NewGameHandler - конструктор для di
+func NewGameHandler(gameService domain.GameService) *GameHandler <span class="cov0" title="0">{
+        return &amp;GameHandler{
+                gameService: gameService,
+        }
+}</span>
+
+// ----------------!!!!!!!!!!!!------------------------------Подумать как удобно сделать,
+// ведь зависимость теперь от GameHandler странная, потому что в равной степени еще зависит от UserAuthenticator и UserHandler
+// Register - регистрирует маршруты
+func (h *GameHandler) Register(mux *http.ServeMux, auth *UserAuthenticator, u *UserHandler) <span class="cov0" title="0">{
+        mux.HandleFunc("POST /users", u.handleUsersCreate)
+        mux.HandleFunc("POST /sessions", u.handleSessionCreate)
+        mux.HandleFunc("GET /users/{uuid}", auth.Validate(u.handleGetUserInfo))
+
+        mux.HandleFunc("POST /games", auth.Validate(h.handleCreateGame))
+        mux.HandleFunc("GET /games", auth.Validate(h.handleGetAvailableGames))
+        mux.HandleFunc("GET /games/{uuid}", auth.Validate(h.handleGetGameInfo))
+        mux.HandleFunc("PATCH /games/{uuid}/users", auth.Validate(h.handleJoinUser))
+        mux.HandleFunc("PATCH /games/{uuid}", auth.Validate(h.handlePatchCurrentGame))
+}</span>
+
+/*
+handleCreateGame - создание новой игры с пользователем или с компьютером
+
+Method POST /games
+JSON в теле запроса:
+{
+"withComputer": true/false
+}
+
+Ответ:
+Успешно
+Status code:
+- 201 Created
+JSON, представляющий созданный ресурс, в теле ответа
+
+Ошибка
+Status code:
+- 400 Bad Request
+- 500 Internal Server Error
+JSON, описание ошибки
+*/
+func (h *GameHandler) handleCreateGame(w http.ResponseWriter, r *http.Request) <span class="cov0" title="0">{
+
+        ctx, uuidUser, err := getUUIDUser(w, r)
+        if err != nil </span><span class="cov0" title="0">{
+                return
+        }</span>
+
+        <span class="cov0" title="0">var req reqNewGame
+        if err := json.NewDecoder(r.Body).Decode(&amp;req); err != nil </span><span class="cov0" title="0">{
+                writeError(w, http.StatusBadRequest, "wrong body, need param with_computer, error: "+err.Error())
+                return
+        }</span>
+
+        <span class="cov0" title="0">if req.WithComputer == nil </span><span class="cov0" title="0">{
+                writeError(w, http.StatusBadRequest, "missing required field: with_computer")
+                return
+        }</span>
+
+        <span class="cov0" title="0">domainGame, err := h.gameService.CreateNewGame(ctx, *req.WithComputer, uuidUser)
+        if err != nil </span><span class="cov0" title="0">{
+                writeError(w, http.StatusInternalServerError, err.Error())
+                return
+        }</span>
+
+        <span class="cov0" title="0">newGame := toGameDTO(domainGame)
+
+        writeJSON(w, http.StatusCreated, newGame)</span>
+}
+
+/*
+handleGetAvailableGames - получение информации о доступных играх
+Method GET /games
+Query параметры (?gameState=waitUsers)
+
+Ответ:
+Успешно
+Status code:
+- 200 OK
+JSON, представляющий все найденные игры, в теле ответа
+
+Ошибка
+Status code:
+- 400 Bad Request
+- 500 Internal Server Error
+JSON, описание ошибки
+*/
+func (h *GameHandler) handleGetAvailableGames(w http.ResponseWriter, r *http.Request) <span class="cov0" title="0">{
+        ctx, uuidUser, err := getUUIDUser(w, r)
+        if err != nil </span><span class="cov0" title="0">{
+                return
+        }</span>
+
+        <span class="cov0" title="0">queryParam := r.FormValue("gameState")
+        if queryParam != "waitUsers" </span><span class="cov0" title="0">{
+                writeError(w, http.StatusBadRequest, "need query param gameState")
+                return
+        }</span>
+
+        <span class="cov0" title="0">games, err := h.gameService.GetAvailableGames(ctx, uuidUser)
+        if err != nil </span><span class="cov0" title="0">{
+                writeError(w, http.StatusInternalServerError, err.Error())
+                return
+        }</span>
+
+        <span class="cov0" title="0">gamesDTO := make([]gameDTO, 0)
+        for i := range games </span><span class="cov0" title="0">{
+                gameDTO := toGameDTO(games[i])
+                gamesDTO = append(gamesDTO, gameDTO)
+        }</span>
+
+        <span class="cov0" title="0">writeJSON(w, http.StatusOK, gamesDTO)</span>
+}
+
+/*
+handleJoinUser - присоединение пользователя к игре
+Method PATCH /games/{uuid}/users
+
+Ответ:
+Успешно
+Status code:
+- 200 OK
+JSON, представляющий новую изменнёную игру, в теле ответа
+
+Ошибка
+Status code:
+- 400 Bad Request (ErrInvalidUUID)
+- 404 Not Found (ErrGameNotFound)
+- 409 Conflict (ErrAddUser)
+- 500 Internal Server Error (ErrContextCanceled)
+JSON, описание ошибки
+*/
+func (h *GameHandler) handleJoinUser(w http.ResponseWriter, r *http.Request) <span class="cov0" title="0">{
+        ctx, uuidUser, err := getUUIDUser(w, r)
+        if err != nil </span><span class="cov0" title="0">{
+                return
+        }</span>
+
+        <span class="cov0" title="0">gameId := r.PathValue("uuid")
+
+        uuidGame, err := toUUID(gameId)
+        if err != nil </span><span class="cov0" title="0">{
+                writeError(w, http.StatusBadRequest, err.Error())
+                return
+        }</span>
+
+        <span class="cov0" title="0">game, err := h.gameService.JoinUser(ctx, uuidUser, uuidGame)
+        if err == domain.ErrGameNotFound </span><span class="cov0" title="0">{
+                writeError(w, http.StatusNotFound, "error to add user: "+err.Error())
+                return
+        }</span> else<span class="cov0" title="0"> if err == domain.ErrAddUser </span><span class="cov0" title="0">{
+                writeError(w, http.StatusConflict, err.Error())
+                return
+        }</span> else<span class="cov0" title="0"> if err != nil </span><span class="cov0" title="0">{
+                writeError(w, http.StatusInternalServerError, err.Error())
+                return
+        }</span>
+
+        <span class="cov0" title="0">gameDTO := toGameDTO(game)
+        writeJSON(w, http.StatusOK, gameDTO)</span>
+}
+
+/*
+handlePatchCurrentGame - обновление текущей игры
+с учетом игры с пользователем или с компьютером
+Method PATCH /games/{uuid}
+JSON в теле запроса:
+
+        {
+                "board": [
+                            [0,0,1],
+                            [0,0,0],
+                            [0,0,0]
+                        ]
+        }
+
+Ответ:
+Успешно
+Status code:
+- 200 OK
+JSON, представляющий новую изменнёную игру, в теле ответа
+
+Ошибка
+Status code:
+- 400 Bad Request (поле нарушает правила или изменены прошлые ходы, )
+- 404 Not Found (игра не найдена)
+- 409 Conflict (ход аппонента или игра ранее уже была завершена, недопустимое значение клетки)
+- 500 Internal Server Error
+JSON, описание ошибки
+*/
+func (h *GameHandler) handlePatchCurrentGame(w http.ResponseWriter, r *http.Request) <span class="cov0" title="0">{
+        ctx, uuidUser, err := getUUIDUser(w, r)
+        if err != nil </span><span class="cov0" title="0">{
+                return
+        }</span>
+
+        <span class="cov0" title="0">gameId := r.PathValue("uuid")
+
+        uuidGame, err := toUUID(gameId)
+        if err != nil </span><span class="cov0" title="0">{
+                writeError(w, http.StatusBadRequest, err.Error())
+                return
+        }</span>
+
+        <span class="cov0" title="0">var rboard reqBoard
+
+        if err := json.NewDecoder(r.Body).Decode(&amp;rboard); err != nil </span><span class="cov0" title="0">{
+                writeError(w, http.StatusBadRequest, "wrong body "+err.Error())
+                return
+        }</span>
+
+        <span class="cov0" title="0">game, err := h.gameService.NextMove(ctx, domain.Board(rboard.BoardDTO), uuidGame, uuidUser)
+        if err == domain.ErrGameNotFound </span><span class="cov0" title="0">{
+
+                writeError(w, http.StatusNotFound, err.Error())
+                return
+        }</span> else<span class="cov0" title="0"> if err == domain.ErrInvalidBoard || err == domain.ErrInvalidCell || err == domain.ErrDoesntHaveSuchUser </span><span class="cov0" title="0">{
+
+                writeError(w, http.StatusBadRequest, "wrong body "+err.Error())
+                return
+        }</span> else<span class="cov0" title="0"> if err == domain.ErrOpponentsMove || err == domain.ErrGameFinished </span><span class="cov0" title="0">{
+
+                writeError(w, http.StatusConflict, err.Error())
+                return
+        }</span> else<span class="cov0" title="0"> if err != nil </span><span class="cov0" title="0">{
+
+                writeError(w, http.StatusInternalServerError, err.Error())
+                return
+        }</span>
+
+        <span class="cov0" title="0">switch game.State </span>{
+        case domain.StateDraw:<span class="cov0" title="0">
+                writeJSON(w, http.StatusOK, map[string]string{
+                        "message": "GAME OVER",
+                        "winner":  "DRAW",
+                })</span>
+        case domain.StateWin:<span class="cov0" title="0">
+                writeJSON(w, http.StatusOK, map[string]string{
+                        "message": "GAME OVER",
+                        "winner":  game.Winner.String(),
+                })</span>
+        default:<span class="cov0" title="0">
+                gameDTO := toGameDTO(game)
+                writeJSON(w, http.StatusOK, gameDTO)</span>
+
+        }
+}
+
+/*
+handleGetGameInfo - получение информации об игре
+Method GET /games/{uuid}
+
+Ответ:
+Успешно
+Status code:
+- 200 OK
+JSON, представляющий игру, в теле ответа
+
+Ошибка
+Status code:
+- 400 Bad Request
+- 404 Not Found
+- 500 Internal Server Error
+JSON, описание ошибки
+*/
+func (h *GameHandler) handleGetGameInfo(w http.ResponseWriter, r *http.Request) <span class="cov0" title="0">{
+        ctx, uuidUser, err := getUUIDUser(w, r)
+        if err != nil </span><span class="cov0" title="0">{
+                return
+        }</span>
+
+        <span class="cov0" title="0">gameId := r.PathValue("uuid")
+
+        uuidGame, err := toUUID(gameId)
+        if err != nil </span><span class="cov0" title="0">{
+                writeError(w, http.StatusBadRequest, err.Error())
+                return
+        }</span>
+
+        <span class="cov0" title="0">game, err := h.gameService.GetGame(ctx, uuidGame, uuidUser)
+
+        if err == domain.ErrGameNotFound </span><span class="cov0" title="0">{
+
+                writeError(w, http.StatusNotFound, err.Error())
+                return
+        }</span> else<span class="cov0" title="0"> if err == domain.ErrDoesntHaveSuchUser </span><span class="cov0" title="0">{
+
+                writeError(w, http.StatusBadRequest, "wrong body "+err.Error())
+                return
+        }</span> else<span class="cov0" title="0"> if err != nil </span><span class="cov0" title="0">{
+                writeError(w, http.StatusInternalServerError, err.Error())
+                return
+        }</span>
+
+        <span class="cov0" title="0">gameDTO := toGameDTO(game)
+        writeJSON(w, http.StatusOK, gameDTO)</span>
+}
+
+// getUUIDUser - получает user uuidиз контекста
+func getUUIDUser(w http.ResponseWriter, r *http.Request) (context.Context, uuid.UUID, error) <span class="cov0" title="0">{
+        ctx := r.Context()
+
+        uuidUser, ok := ctx.Value(userUUIDKey).(uuid.UUID)
+        if !ok </span><span class="cov0" title="0">{
+                writeError(w, http.StatusUnauthorized, "need authorization")
+                return ctx, uuid.UUID{}, errors.New("error get user uuid")
+        }</span>
+
+        <span class="cov0" title="0">return ctx, uuidUser, nil</span>
+}
+</pre>
+		
+		<pre class="file" id="file13" style="display: none">package web
+
+import (
+        "encoding/json"
+        "net/http"
+        "src/internal/domain"
+)
+
+// NewUserHandler - конструктор для di
+func NewUserHandler(userService domain.UserService) *UserHandler <span class="cov8" title="1">{
+        return &amp;UserHandler{userService: userService}
+}</span>
+
+// UserHandler - HTTP-обработчик
+type UserHandler struct {
+        userService domain.UserService
+}
+
+/*
+HandleCreateUser - Хэндел для регистрация нового пользователя
+
+Method POST /users
+JSON в теле запроса: login и passwort
+
+Ответ:
+Успешно
+Status code:
+- 201 Created
+JSON, представляющий созданного пользователя, в теле ответа
+
+Ошибка
+Status code:
+- 400 Bad Request
+- 409 Conflict
+- 500 Internal Server Error
+JSON, описание ошибки
+*/
+func (u *UserHandler) handleUsersCreate(w http.ResponseWriter, r *http.Request) <span class="cov8" title="1">{
+        ctx := r.Context()
+
+        var signUpRequest domain.SignUpRequest
+        if err := json.NewDecoder(r.Body).Decode(&amp;signUpRequest); err != nil </span><span class="cov8" title="1">{
+                writeError(w, http.StatusBadRequest, "wrong body, need login and password in json, error: "+err.Error())
+                return
+        }</span>
+
+        <span class="cov8" title="1">if signUpRequest.Login == "" || signUpRequest.Password == "" </span><span class="cov8" title="1">{
+                writeError(w, http.StatusBadRequest, "wrong body, login or password not be empty")
+                return
+        }</span>
+
+        // В зависимости от ошибки - разные ответы, либо Conflict, либо Internal Server Error
+        <span class="cov8" title="1">user, err := u.userService.Register(ctx, signUpRequest)
+        if err == domain.ErrLoginIncorrect </span><span class="cov8" title="1">{
+                writeError(w, http.StatusConflict, err.Error())
+                return
+        }</span> else<span class="cov8" title="1"> if err != nil </span><span class="cov8" title="1">{
+                writeError(w, http.StatusInternalServerError, err.Error())
+                return
+        }</span>
+
+        <span class="cov8" title="1">userDTO := toUserDTO(user)
+        writeJSON(w, http.StatusCreated, userDTO)</span>
+}
+
+/*
+handleSessionCreate - создание сессии (отправка UUID авторизованного пользователя)
+
+Method POST /sestions
+в Header логин и пароль в виде base64(login:password)
+
+Ответ:
+Успешно
+Status code:
+- 200
+JSON, UUID пользователя в теле ответа
+
+Ошибка
+Status code:
+- 400 Bad Request - не передан логин и пароль
+- 401 Unauthorized - не верный логин или пароль
+- 500 Internal Server Error
+JSON, описание ошибки
+*/
+func (u *UserHandler) handleSessionCreate(w http.ResponseWriter, r *http.Request) <span class="cov8" title="1">{
+        ctx := r.Context()
+        login, password, ok := r.BasicAuth()
+        if !ok </span><span class="cov8" title="1">{
+                writeError(w, http.StatusBadRequest, "need authorization")
+                return
+        }</span>
+
+        <span class="cov8" title="1">signUpRequest := domain.SignUpRequest{
+                Login:    login,
+                Password: password,
+        }
+
+        uuid, err := u.userService.LogIn(ctx, signUpRequest)
+        if err == domain.ErrLoginOrPasswordIncorrect </span><span class="cov8" title="1">{
+                writeError(w, http.StatusUnauthorized, err.Error())
+                return
+        }</span> else<span class="cov8" title="1"> if err != nil </span><span class="cov8" title="1">{
+                writeError(w, http.StatusInternalServerError, err.Error())
+                return
+        }</span>
+
+        <span class="cov8" title="1">type response struct {
+                UUID string
+        }
+
+        res := response{UUID: uuid.String()}
+        writeJSON(w, http.StatusOK, res)</span>
+}
+
+/*
+handleGetUserInfo - получение информации о пользователе по UUID
+Method GET /users/{uuid}
+
+Ответ:
+Успешно
+Status code:
+- 200 OK
+JSON, представляющий информацию о пользователе, в теле ответа
+
+Ошибка
+Status code:
+- 400 Bad Request
+- 404 Not Found
+- 500 Internal Server Error
+JSON, описание ошибки
+*/
+func (u *UserHandler) handleGetUserInfo(w http.ResponseWriter, r *http.Request) <span class="cov0" title="0">{
+        ctx := r.Context()
+
+        userId := r.PathValue("uuid")
+
+        uuidUser, err := toUUID(userId)
+        if err != nil </span><span class="cov0" title="0">{
+                writeError(w, http.StatusBadRequest, err.Error())
+                return
+        }</span>
+
+        <span class="cov0" title="0">user, err := u.userService.GetUserInfo(ctx, uuidUser)
+
+        if err == domain.ErrUserNotFound </span><span class="cov0" title="0">{
+                writeError(w, http.StatusNotFound, err.Error())
+                return
+        }</span> else<span class="cov0" title="0"> if err != nil </span><span class="cov0" title="0">{
+                writeError(w, http.StatusInternalServerError, err.Error())
+                return
+        }</span>
+
+        <span class="cov0" title="0">userDTO := toUserDTO(user)
+        writeJSON(w, http.StatusOK, userDTO)</span>
+
+}
+</pre>
+		
+		<pre class="file" id="file14" style="display: none">package web
+
+import (
+        uuid "github.com/google/uuid"
+        "src/internal/domain"
+        "time"
+)
+
+// toDomain преобразует GameDTO в domain.Game
+// func toGameDomain(dto gameDTO) (domain.Game, error) {
+//         UUID, err := uuid.Parse(dto.UUID)
+//         if err != nil {
+//                 return domain.Game{}, domain.ErrInvalidUUID
+//         }
+
+//         return domain.Game{
+//                 ID: ,
+//                 UUID:  UUID,
+//                 Board: domain.Board(dto.Board),
+
+//         }, nil
+// }
+
+// toUUID - парсит UUID
+// Возвращает UUID или ErrInvalidUUID
+func toUUID(str string) (uuid.UUID, error) <span class="cov0" title="0">{
+        uuid, err := uuid.Parse(str)
+        if err != nil </span><span class="cov0" title="0">{
+                return uuid, domain.ErrInvalidUUID
+        }</span>
+
+        <span class="cov0" title="0">return uuid, nil</span>
+}
+
+// toDTO - преобразует domain.Game в GameDTO
+func toGameDTO(game domain.Game) gameDTO <span class="cov0" title="0">{
+        return gameDTO{
+                ID:           game.ID,
+                UUID:         game.UUID.String(),
+                Board:        boardDTO(game.Board),
+                WithComputer: game.WithComputer,
+                State:        game.State,
+                NextPlayer:   uuidPtrToString(game.NextPlayer),
+                Winner:       uuidPtrToString(game.Winner),
+
+                UUIDPlayerFirst:  game.UUIDPlayerFirst.String(),
+                UUIDPlayerSecond: uuidPtrToString(game.UUIDPlayerSecond),
+                UpdatedAt:        game.UpdatedAt.UTC().Format(time.RFC3339),
+        }
+}</span>
+
+// uuidPtrToString - переводит *uuid.UUID в *string
+func uuidPtrToString(val *uuid.UUID) *string <span class="cov0" title="0">{
+        if val == nil </span><span class="cov0" title="0">{
+                return nil
+        }</span>
+        <span class="cov0" title="0">str := val.String()
+        return &amp;str</span>
+}
+
+// toUserDT - парсит domain.User в userDTO
+func toUserDTO(user domain.User) userDTO <span class="cov8" title="1">{
+        return userDTO{
+                ID:       user.ID,
+                UUID:     user.UUID.String(),
+                Login:    user.Login,
+                CreateAt: user.CreateAt.UTC().Format(time.RFC3339),
+        }
+}</span>
+</pre>
+		
+		<pre class="file" id="file15" style="display: none">package web
+
+import (
+        "encoding/json"
+        "fmt"
+        "net/http"
+)
+
+// writeJSON - отправляет код ответа и тело ответа пользователю
+func writeJSON(w http.ResponseWriter, status int, body any) <span class="cov8" title="1">{
+        w.Header().Set("Content-Type", "application/json")
+
+        w.WriteHeader(status)
+        err := json.NewEncoder(w).Encode(body)
+        if err != nil </span><span class="cov0" title="0">{
+                fmt.Println("Error parse json:", err)
+        }</span>
+}
+
+// writeError - оправляет код ошибки и информацию об ошибке пользователю
+func writeError(w http.ResponseWriter, status int, msg string) <span class="cov8" title="1">{
+        w.Header().Set("Content-Type", "application/json")
+
+        w.WriteHeader(status)
+        err := json.NewEncoder(w).Encode(errorDTO{Error: msg})
+        if err != nil </span><span class="cov0" title="0">{
+                fmt.Println("Error parse json:", err)
+        }</span>
+}
+</pre>
+		
+		<pre class="file" id="file16" style="display: none">package web
+
+import (
+        "context"
+        "net/http"
+        "src/internal/domain"
+)
+
+// contextKey - тип для ключей контекста
+type contextKey string
+
+// Константа-ключ
+const (
+        userUUIDKey contextKey = "userUUID"
+)
+
+// UserAuthenticator - защита от неавторизованных запросов
+type UserAuthenticator struct {
+        userService domain.UserService
+}
+
+// NewUserAuthenticator - конструктор для di
+func NewUserAuthenticator(userService domain.UserService) *UserAuthenticator <span class="cov0" title="0">{
+        return &amp;UserAuthenticator{userService: userService}
+}</span>
+
+// Validate - это Middleware. Он принимает следующий хендлер и возвращает новый
+func (auth *UserAuthenticator) Validate(next http.HandlerFunc) http.HandlerFunc <span class="cov0" title="0">{
+        return func(w http.ResponseWriter, r *http.Request) </span><span class="cov0" title="0">{
+                ctx := r.Context()
+
+                login, password, ok := r.BasicAuth()
+                if !ok </span><span class="cov0" title="0">{
+                        writeError(w, http.StatusBadRequest, "Need authorization")
+                        return
+                }</span>
+
+                <span class="cov0" title="0">signUpRequest := domain.SignUpRequest{
+                        Login:    login,
+                        Password: password,
+                }
+
+                uuid, err := auth.userService.LogIn(ctx, signUpRequest)
+                if err == domain.ErrLoginOrPasswordIncorrect </span><span class="cov0" title="0">{
+                        writeError(w, http.StatusUnauthorized, err.Error())
+                        return
+                }</span> else<span class="cov0" title="0"> if err != nil </span><span class="cov0" title="0">{
+                        writeError(w, http.StatusInternalServerError, err.Error())
+                        return
+                }</span>
+
+                // Складываем наше значение в контекст
+                <span class="cov0" title="0">newCtx := context.WithValue(ctx, userUUIDKey, uuid)
+
+                next(w, r.WithContext(newCtx))</span>
+        }
+}
+</pre>
+		
+		</div>
+	</body>
+	<script>
+	(function() {
+		var files = document.getElementById('files');
+		var visible;
+		files.addEventListener('change', onChange, false);
+		function select(part) {
+			if (visible)
+				visible.style.display = 'none';
+			visible = document.getElementById(part);
+			if (!visible)
+				return;
+			files.value = part;
+			visible.style.display = 'block';
+			location.hash = part;
+		}
+		function onChange() {
+			select(files.value);
+			window.scrollTo(0, 0);
+		}
+		if (location.hash != "") {
+			select(location.hash.substr(1));
+		}
+		if (!visible) {
+			select("file0");
+		}
+	})();
+	</script>
+</html>

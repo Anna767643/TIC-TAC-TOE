@@ -18,6 +18,6 @@ var (
 
 	ErrLoginOrPasswordIncorrect = errors.New("the login or password is incorrect")    // неверный логин или пароль
 	ErrLoginIncorrect           = errors.New("a user with this login already exists") // пользователь с таким логином уже существует
-	ErrUserNotFound             = errors.New("user not found")                        // пользователь не найден (но пользователь данную ошибку никогда не увидит)
+	ErrUserNotFound             = errors.New("user not found")                        // пользователь не найден
 
 )

@@ -13,7 +13,7 @@ type GameRepository interface {
 		Ошибки:
 		ErrContextCanceled
 		"repository: insert game %s: %w"
-		ErrGameNotFound
+		"repository: failed select game after save: %w"
 		"repository: select game %s: %w"
 		"repository: failed to map game entity to domain: error"
 	*/

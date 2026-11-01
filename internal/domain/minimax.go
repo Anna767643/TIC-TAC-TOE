@@ -13,18 +13,20 @@ type pos struct {
 	j int
 }
 
-// NextMove - выполняет ход игроком
-// Если следующий ход компьютера, то он выполняется с помощью алгоритма минимакс
-// Возвращает игру с обновлённым полем.
-// Ошибки:
-// ErrContextCanceled - игра прерывается
-// ErrGameFinished - игра была ранее окончена
-// ErrWaitOpponent - второй игрок еще не присоеденился к игре
-// ErrGameNotFound - игра не найдена
-// ErrDoesntHaveSuchUser - в этой игре нет такого пользователя
-// ErrOpponentsMove - ход аппонента
-// ErrInvalidBoard - поле нарушает правила или изменены прошлые ходы
-// ErrInvalidCell - недопустимое значение клетки
+/*
+NextMove - выполняет ход игроком
+Если следующий ход компьютера, то он выполняется с помощью алгоритма минимакс
+Возвращает игру с обновлённым полем.
+Ошибки:
+ErrContextCanceled - игра прерывается
+ErrGameFinished - игра была ранее окончена
+ErrWaitOpponent - второй игрок еще не присоеденился к игре
+ErrGameNotFound - игра не найдена
+ErrDoesntHaveSuchUser - в этой игре нет такого пользователя
+ErrOpponentsMove - ход аппонента
+ErrInvalidBoard - поле нарушает правила или изменены прошлые ходы
+ErrInvalidCell - недопустимое значение клетки
+*/
 func (s *gameService) NextMove(ctx context.Context, board Board, uuidGame uuid.UUID, uuidUser uuid.UUID) (Game, error) {
 	if err := ctx.Err(); err != nil {
 		return Game{}, ErrContextCanceled
@@ -41,6 +43,7 @@ func (s *gameService) NextMove(ctx context.Context, board Board, uuidGame uuid.U
 	case StateWaitUsers:
 		return Game{}, ErrWaitOpponent
 	case StateDraw:
+		return Game{}, ErrGameFinished
 	case StateWin:
 		return Game{}, ErrGameFinished
 	}
@@ -109,6 +112,13 @@ func (s *gameService) NextMove(ctx context.Context, board Board, uuidGame uuid.U
 	return game, nil
 }
 
+/*
+nextMoveWithComputer -совершает следующий ход компьютером и записывает результат
+Возращает новую игру
+Ошибки:
+- ErrContextCanceled
+- "repository: update game %s: %w"
+*/
 func (s *gameService) nextMoveWithComputer(ctx context.Context, game Game) (Game, error) {
 	bestScore := -1000
 	var bestPosition pos
@@ -121,7 +131,7 @@ func (s *gameService) nextMoveWithComputer(ctx context.Context, game Game) (Game
 		//Уходим в рекурсию для подсчета выгодности данного хода
 		score, err := s.minimax(ctx, newBoard, 0, false)
 		if err != nil {
-			return game, ErrContextCanceled
+			return Game{}, err
 		}
 
 		// Если счет лучший, то сохраняем
@@ -200,7 +210,7 @@ func (s *gameService) minimax(ctx context.Context, b Board, depth int, isMax boo
 	return bestScore, nil
 }
 
-// searchAllOptions ищет все доступные пустые клетки на доске.
+// searchAllOptions - ищет все доступные пустые клетки на доске.
 func (s *gameService) searchAllOptions(board Board) []pos {
 	options := make([]pos, 0, 9)
 	for i := range board {

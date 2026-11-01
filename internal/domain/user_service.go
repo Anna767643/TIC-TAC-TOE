@@ -2,15 +2,24 @@ package domain
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	"github.com/google/uuid"
 	"golang.org/x/crypto/bcrypt"
 )
 
-// Register - регистрирует нового пользователя
-// возвращает факт успешной регистрации
-// или ошибку
+/*
+Register - регистрирует нового пользователя
+возвращает факт успешной регистрации
+Ошибки:
+ErrContextCanceled
+"domain: faled to generate password hash %w"
+ErrLoginIncorrect
+"repository: insert user with %s: %w"
+"repository: select user with %s: %w"
+"domain: faled to get user %w"
+*/
 func (u *userService) Register(ctx context.Context, signUpRequest SignUpRequest) (User, error) {
 	if err := ctx.Err(); err != nil {
 		return User{}, ErrContextCanceled
@@ -18,7 +27,7 @@ func (u *userService) Register(ctx context.Context, signUpRequest SignUpRequest)
 
 	passwordHash, err := bcrypt.GenerateFromPassword([]byte(signUpRequest.Password), 10)
 	if err != nil {
-		return User{}, err
+		return User{}, fmt.Errorf("domain: faled to generate password hash %w", err)
 	}
 
 	user := User{
@@ -34,6 +43,10 @@ func (u *userService) Register(ctx context.Context, signUpRequest SignUpRequest)
 
 	user, err = u.repo.Get(ctx, signUpRequest.Login, uuid.UUID{})
 	if err != nil {
+		if err == ErrUserNotFound {
+			return User{}, fmt.Errorf("domain: faled to get user %w", err)
+
+		}
 		return User{}, err
 	}
 
@@ -42,12 +55,20 @@ func (u *userService) Register(ctx context.Context, signUpRequest SignUpRequest)
 	return user, nil
 }
 
-// LogIn - авторизирует пользователя
-// возвращает UUIDпользователя
-// или ошибку
+/*
+LogIn - авторизирует пользователя
+возвращает UUIDпользователя
+Ошибки:
+ErrContextCanceled
+ErrLoginOrPasswordIncorrect
+"repository: select user with %s: %w"
+*/
 func (u *userService) LogIn(ctx context.Context, signUpRequest SignUpRequest) (uuid.UUID, error) {
 	if err := ctx.Err(); err != nil {
-		return uuid.UUID{}, ErrContextCanceled
+		if err == ErrUserNotFound {
+			return uuid.UUID{}, ErrContextCanceled
+		}
+		return uuid.UUID{}, err
 	}
 
 	user, err := u.repo.Get(ctx, signUpRequest.Login, uuid.UUID{})
@@ -62,6 +83,14 @@ func (u *userService) LogIn(ctx context.Context, signUpRequest SignUpRequest) (u
 	return user.UUID, nil
 }
 
+/*
+GetUserInfo - получение информации о пользователе по UUID пользователя
+Возвращает информацию о пользователе
+Ошибки:
+ErrContextCanceled
+ErrUserNotFound
+"repository: select user with %s: %w"
+*/
 func (u *userService) GetUserInfo(ctx context.Context, uuidUser uuid.UUID) (User, error) {
 	if err := ctx.Err(); err != nil {
 		return User{}, ErrContextCanceled

@@ -247,23 +247,21 @@ func (h *GameHandler) handlePatchCurrentGame(w http.ResponseWriter, r *http.Requ
 		return
 	}
 
-	if game.State == domain.StateDraw {
-
+	switch game.State {
+	case domain.StateDraw:
 		writeJSON(w, http.StatusOK, map[string]string{
 			"message": "GAME OVER",
 			"winner":  "DRAW",
 		})
-
-	} else if game.State == domain.StateWin {
-
+	case domain.StateWin:
 		writeJSON(w, http.StatusOK, map[string]string{
 			"message": "GAME OVER",
 			"winner":  game.Winner.String(),
 		})
-
-	} else {
+	default:
 		gameDTO := toGameDTO(game)
 		writeJSON(w, http.StatusOK, gameDTO)
+
 	}
 }
 
