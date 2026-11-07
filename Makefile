@@ -4,25 +4,23 @@ run:
 	go run $(APP_DIR)main.go 
 
 test: 
-	 go test $(PACKAGES) -v
+	go test $(PACKAGES) -v
+	go test -race  -cover $(PACKAGES) 
 
-test_coverage:
-	go test $(PACKAGES) -cover
-
-test_html:
+gcov_report:
 	go test $(PACKAGES) -coverprofile=coverage.txt
 	go tool cover -html coverage.txt -o index.html
 	open index.html
 
-test_analiz:
+fmt:
+#	Формотирование
+	gofmt -l . 
 # 	Потенциальные ошибки
-	go vet ./...
+	go vet $(PACKAGES) 
 # 	Ревью кода
-	golangci-lint run ./...
+	golangci-lint run $(PACKAGES) 
 # 	Актуальность mod
 	go mod tidy -diff
-# 	Проверка на гонки, долго обрабатывается
-	go test -race -cover ./...
 
 clean:
 	rm -f index.html coverage.txt

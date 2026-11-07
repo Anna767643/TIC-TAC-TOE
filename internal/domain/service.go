@@ -29,10 +29,15 @@ type GameService interface {
 	*/
 	GetAvailableGames(ctx context.Context, uuidUser uuid.UUID) ([]Game, error)
 
-	// JoinUser - присоединяет пользователя к игре
-	// В случае успеха возвращает измененную игру
-	// Ошибки: игра не найдена, к данной игре нельзя добавить пользователя,
-	// context.Canceled, или иная неописанная ошибка
+	/*
+		JoinUser - присоединяет пользователя к игре
+		В случае успеха возвращает измененную игру
+		Ошибки:
+		ErrContextCanceled
+		"repository: select game %s: %w"
+		ErrAddUser
+		"repository: update user in game %s: %w"
+	*/
 	JoinUser(ctx context.Context, uuidUser uuid.UUID, uuidGame uuid.UUID) (Game, error)
 
 	/*

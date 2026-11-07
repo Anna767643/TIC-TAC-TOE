@@ -77,6 +77,27 @@ func (r *gameRepository) Save(ctx context.Context, game domain.Game) error {
 }
 
 /*
+JoinSecondUser - добавляет второго пользователя
+Ошибки:
+ErrContextCanceled
+"repository: update user in game %s: %w"
+ErrAddUser
+*/
+func (r *gameRepository) JoinSecondUser(ctx context.Context, game domain.Game) error {
+	if err := ctx.Err(); err != nil {
+		return domain.ErrContextCanceled
+	}
+
+	gameEntity := toEntityGame(game)
+
+	if err := r.gs.updateSecondPlayerInGames(ctx, gameEntity); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+/*
 GetAvailableGames - получение среза доступных игр для присоединения игрока с определенным uuid
 Возвращает срез игр
 Ошибки:

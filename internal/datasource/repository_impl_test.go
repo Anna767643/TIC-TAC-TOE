@@ -23,6 +23,7 @@ type mockGameStorage struct {
 	selectFromUsersWithLoginFunc    func(ctx context.Context, login string) (userEntity, error)
 	selectFromUsersWithUUIDFunc     func(ctx context.Context, uuidUser uuid.UUID) (userEntity, error)
 	updateGamesFunc                 func(ctx context.Context, game gameEntity) error
+	updateSecondPlayerInGamesFunc   func(ctx context.Context, game gameEntity) error
 }
 
 func (m *mockGameStorage) Close() {}
@@ -56,6 +57,10 @@ func (m *mockGameStorage) selectFromUsersWithUUID(ctx context.Context, uuidUser 
 
 func (m *mockGameStorage) updateGames(ctx context.Context, game gameEntity) error {
 	return m.updateGamesFunc(ctx, game)
+}
+
+func (m *mockGameStorage) updateSecondPlayerInGames(ctx context.Context, game gameEntity) error {
+	return m.updateSecondPlayerInGamesFunc(ctx, game)
 }
 
 func TestSaveNewGame(t *testing.T) {
@@ -275,6 +280,75 @@ func TestSaveGame(t *testing.T) {
 				}
 			} else if (err != nil) != (tc.expectedErr != nil) {
 				t.Errorf("gr.Save() get error %v, but want %v", err, tc.expectedErr)
+				return
+			}
+
+		})
+	}
+}
+
+func TestJoinSecondUser(t *testing.T) {
+	testCases := []struct {
+		testName    string
+		setupMock   func(*mockGameStorage)
+		cancelCtx   bool
+		expectedErr error
+	}{
+		{
+			testName: "OK",
+			setupMock: func(m *mockGameStorage) {
+				m.updateSecondPlayerInGamesFunc = func(ctx context.Context, game gameEntity) error {
+					return nil
+				}
+			},
+			expectedErr: nil,
+		},
+		{
+			testName: "Error to update",
+			setupMock: func(m *mockGameStorage) {
+				m.updateSecondPlayerInGamesFunc = func(ctx context.Context, game gameEntity) error {
+					return domain.ErrAddUser
+				}
+			},
+			expectedErr: domain.ErrAddUser,
+		},
+		{
+			testName:  "ErrContextCanceled",
+			cancelCtx: true,
+			setupMock: func(m *mockGameStorage) {
+				m.updateSecondPlayerInGamesFunc = func(ctx context.Context, game gameEntity) error {
+					return nil
+				}
+			},
+			expectedErr: domain.ErrContextCanceled,
+		},
+	}
+	for _, tc := range testCases {
+		t.Run(tc.testName, func(t *testing.T) {
+			ctx, cancel := context.WithCancel(context.Background())
+			t.Parallel()
+
+			if tc.cancelCtx {
+				cancel()
+			} else {
+				defer cancel()
+			}
+
+			mock := &mockGameStorage{}
+			tc.setupMock(mock)
+
+			gr := &gameRepository{
+				gs: mock,
+			}
+			err := gr.JoinSecondUser(ctx, domain.Game{})
+
+			if tc.expectedErr == domain.ErrContextCanceled {
+				if !errors.Is(err, tc.expectedErr) {
+					t.Errorf("gr.JoinSecondUser() get error %v, but want %v", err, tc.expectedErr)
+					return
+				}
+			} else if (err != nil) != (tc.expectedErr != nil) {
+				t.Errorf("gr.JoinSecondUser() get error %v, but want %v", err, tc.expectedErr)
 				return
 			}
 

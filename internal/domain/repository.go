@@ -28,6 +28,15 @@ type GameRepository interface {
 	Save(ctx context.Context, game Game) error
 
 	/*
+		JoinSecondUser - добавляет второго пользователя
+		Ошибки:
+		ErrContextCanceled
+		"repository: update user in game %s: %w"
+		ErrAddUser
+	*/
+	JoinSecondUser(ctx context.Context, game Game) error
+
+	/*
 		GetAvailableGames - получение среза доступных игр для присоединения игрока с определенным uuid
 		Возвращает срез игр
 		Ошибки:

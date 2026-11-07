@@ -48,13 +48,11 @@ func (s *gameService) NextMove(ctx context.Context, board Board, uuidGame uuid.U
 		return Game{}, ErrGameFinished
 	}
 
-	// Сверяем UUID игрока
-	isFirst := game.UUIDPlayerFirst == uuidUser
-	isSecond := game.UUIDPlayerSecond != nil && *game.UUIDPlayerSecond == uuidUser
 	// Данный игрок в эту игру не играет
-	if !isFirst && !isSecond {
+	if !game.HasPlayer(uuidUser) {
 		return Game{}, ErrDoesntHaveSuchUser
 	}
+
 	if game.NextPlayer != nil && *game.NextPlayer != uuidUser {
 		return Game{}, ErrOpponentsMove
 	}

@@ -29,6 +29,11 @@ type gameStorage interface {
 	// "repository: update game %s: %w"
 	updateGames(ctx context.Context, game gameEntity) error
 
+	// updateSecondPlayerInGames - добавляет второго игрока к игре
+	// "repository: update user in game %s: %w"
+	// ErrAddUser
+	updateSecondPlayerInGames(ctx context.Context, game gameEntity) error
+
 	// selectAvaibleGamesFromGames - получение среза игр из таблицы games
 	// доступных для присоединения игроку с uuid = uuidUser
 	// "repository: select game for user %s: %w"
@@ -116,13 +121,34 @@ func (db *DBPool) insertIntoGames(ctx context.Context, game gameEntity) error {
 func (db *DBPool) updateGames(ctx context.Context, game gameEntity) error {
 	sqlQuery := `
 	UPDATE games
-	SET board = $1, state = $2, next_player = $3, winner = $4, uuid_player_second = $5, update_at = $6
-	WHERE uuid = $7;
+	SET board = $1, state = $2, next_player = $3, winner = $4, update_at = $5
+	WHERE uuid = $6;
 	`
 
-	_, err := db.pool.Exec(ctx, sqlQuery, game.Board, game.State, game.NextPlayer, game.Winner, game.UUIDPlayerSecond, game.UpdatedAt, game.UUID)
+	_, err := db.pool.Exec(ctx, sqlQuery, game.Board, game.State, game.NextPlayer, game.Winner, game.UpdatedAt, game.UUID)
 	if err != nil {
 		return fmt.Errorf("repository: update game %s: %w", game.UUID, err)
+	}
+
+	return nil
+}
+
+// updateSecondPlayerInGames - добавляет второго игрока к игре
+// "repository: update user in game %s: %w"
+// ErrAddUser
+func (db *DBPool) updateSecondPlayerInGames(ctx context.Context, game gameEntity) error {
+	sqlQuery := `
+	UPDATE games
+	SET state = $1, next_player = $2, uuid_player_second = $3, update_at = $4
+	WHERE uuid = $5 AND uuid_player_second IS NULL AND state = 'wait users';
+	`
+	tag, err := db.pool.Exec(ctx, sqlQuery, game.State, game.NextPlayer, game.UUIDPlayerSecond, game.UpdatedAt, game.UUID)
+	if err != nil {
+		return fmt.Errorf("repository: update user in game %s: %w", game.UUID, err)
+	}
+
+	if tag.RowsAffected() == 0 {
+		return domain.ErrAddUser
 	}
 
 	return nil

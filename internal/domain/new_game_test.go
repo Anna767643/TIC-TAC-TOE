@@ -3,6 +3,7 @@ package domain
 import (
 	"context"
 	"errors"
+	"fmt"
 	"strings"
 	"testing"
 	"time"
@@ -15,6 +16,7 @@ type mockGameRepository struct {
 	SaveFunc              func(ctx context.Context, game Game) error
 	GetAvailableGamesFunc func(ctx context.Context, uuidUser uuid.UUID) ([]Game, error)
 	GetFunc               func(ctx context.Context, uuid uuid.UUID) (Game, error)
+	JoinSecondUserFunc    func(ctx context.Context, game Game) error
 }
 
 func (m *mockGameRepository) SaveNewGame(ctx context.Context, game Game) (Game, error) {
@@ -31,6 +33,10 @@ func (m *mockGameRepository) GetAvailableGames(ctx context.Context, uuidUser uui
 
 func (m *mockGameRepository) Get(ctx context.Context, uuid uuid.UUID) (Game, error) {
 	return m.GetFunc(ctx, uuid)
+}
+
+func (m *mockGameRepository) JoinSecondUser(ctx context.Context, game Game) error {
+	return m.JoinSecondUserFunc(ctx, game)
 }
 
 func TestCreateNewGame(t *testing.T) {
@@ -65,7 +71,7 @@ func TestCreateNewGame(t *testing.T) {
 			expectedErr:  "repository: insert game %s: %w",
 		},
 		{
-			testName: "OK",
+			testName: "OK, with computer",
 			setupMock: func(m *mockGameRepository) {
 				m.SaveNewGameFunc = func(ctx context.Context, game Game) (Game, error) {
 					return Game{
@@ -94,6 +100,39 @@ func TestCreateNewGame(t *testing.T) {
 				WithComputer:    true,
 				State:           StateNextMove,
 				NextPlayer:      &(uuidUser),
+				UUIDPlayerFirst: uuidUser,
+				UpdatedAt:       updatedAt,
+			},
+			expectedErr: "",
+		},
+		{
+			testName: "OK",
+			setupMock: func(m *mockGameRepository) {
+				m.SaveNewGameFunc = func(ctx context.Context, game Game) (Game, error) {
+					return Game{
+						UUID: uuidGame,
+						Board: Board{
+							{0, 0, 0},
+							{0, 0, 0},
+							{0, 0, 0},
+						},
+						WithComputer:    false,
+						State:           StateWaitUsers,
+						UUIDPlayerFirst: uuidUser,
+						UpdatedAt:       updatedAt,
+					}, nil
+				}
+			},
+			withComputer: true,
+			expectedGame: Game{
+				UUID: uuidGame,
+				Board: Board{
+					{0, 0, 0},
+					{0, 0, 0},
+					{0, 0, 0},
+				},
+				WithComputer:    false,
+				State:           StateWaitUsers,
 				UUIDPlayerFirst: uuidUser,
 				UpdatedAt:       updatedAt,
 			},
@@ -143,8 +182,11 @@ func TestCreateNewGame(t *testing.T) {
 					if game.State != tc.expectedGame.State {
 						t.Errorf("Wrong result: get %s, want %s", game.State, tc.expectedGame.State)
 					}
-				}
 
+					if game.NextPlayer != tc.expectedGame.NextPlayer {
+						t.Errorf("Wrong result: get %s, want %s", game.NextPlayer, tc.expectedGame.NextPlayer)
+					}
+				}
 			}
 		})
 	}
@@ -256,6 +298,136 @@ func TestGetAvailableGames(t *testing.T) {
 	}
 }
 
+func TestJoinUser(t *testing.T) {
+	uuidUser := uuid.New()
+	uuidGame := uuid.New()
+	fmt.Println(uuidGame)
+
+	uuidUserSecond := uuid.New()
+
+	tests := []struct {
+		testName     string
+		setupMock    func(*mockGameRepository)
+		expectedGame Game
+		expectedErr  string
+		cancelCtx    bool
+	}{
+		{
+			testName: "ErrContextCanceled",
+			setupMock: func(m *mockGameRepository) {
+			},
+			expectedGame: Game{},
+			expectedErr:  ErrContextCanceled.Error(),
+			cancelCtx:    true,
+		},
+		{
+			testName: "ErrAddUser",
+			setupMock: func(m *mockGameRepository) {
+				m.JoinSecondUserFunc = func(ctx context.Context, game Game) error {
+					return ErrAddUser
+				}
+				m.GetFunc = func(ctx context.Context, uuid uuid.UUID) (Game, error) {
+					return Game{}, nil
+				}
+			},
+			expectedGame: Game{},
+			expectedErr:  ErrAddUser.Error(),
+		},
+		{
+			testName: "Error get game",
+			setupMock: func(m *mockGameRepository) {
+				m.JoinSecondUserFunc = func(ctx context.Context, game Game) error {
+					return nil
+				}
+				m.GetFunc = func(ctx context.Context, uuid uuid.UUID) (Game, error) {
+					return Game{}, errors.New("repository: select game")
+				}
+			},
+			expectedGame: Game{},
+			expectedErr:  "repository: select game",
+		},
+		{
+			testName: "OK",
+			setupMock: func(m *mockGameRepository) {
+				m.JoinSecondUserFunc = func(ctx context.Context, game Game) error {
+					return nil
+				}
+				m.GetFunc = func(ctx context.Context, uuid uuid.UUID) (Game, error) {
+					return Game{
+						UUID: uuid,
+						Board: Board{
+							{0, 0, 0},
+							{0, 0, 0},
+							{0, 0, 0},
+						},
+						State:      StateNextMove,
+						NextPlayer: &uuidUser,
+
+						UUIDPlayerFirst:  uuidUser,
+						UUIDPlayerSecond: &uuidUserSecond,
+					}, nil
+				}
+			},
+			expectedGame: Game{
+				UUID: uuidGame,
+				Board: Board{
+					{0, 0, 0},
+					{0, 0, 0},
+					{0, 0, 0},
+				},
+				State:      StateNextMove,
+				NextPlayer: &uuidUser,
+
+				UUIDPlayerFirst:  uuidUser,
+				UUIDPlayerSecond: &uuidUserSecond,
+			},
+			expectedErr: "",
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.testName, func(t *testing.T) {
+			t.Parallel()
+			ctx, cancel := context.WithCancel(context.Background())
+
+			if !tc.cancelCtx {
+				defer cancel()
+			} else {
+				cancel()
+			}
+
+			mock := &mockGameRepository{}
+			tc.setupMock(mock)
+
+			gs := NewGameService(mock)
+			game, err := gs.JoinUser(ctx, uuidUser, uuidGame)
+
+			if tc.expectedErr == "" {
+				if err != nil {
+					t.Fatalf("Expected no error, but got: %v", err)
+				} else {
+					if game.Board != tc.expectedGame.Board {
+						t.Errorf("Wrong result Board: get %v, want %v", game.Board, tc.expectedGame.Board)
+					}
+					if game.UUID != tc.expectedGame.UUID {
+						t.Errorf("Wrong result UUID: get %v, want %v", game.UUID, tc.expectedGame.UUID)
+					}
+					if game.State != tc.expectedGame.State {
+						t.Errorf("Wrong result State: get %s, want %s", game.State, tc.expectedGame.State)
+					}
+				}
+			} else {
+				if err == nil {
+					t.Fatalf("Expected error containing %q, but got nil", tc.expectedErr)
+				}
+
+				if !strings.Contains(strings.ToLower(err.Error()), tc.expectedErr) {
+					t.Errorf("Expected error to contain %v, but got: %v", tc.expectedErr, err)
+				}
+			}
+		})
+	}
+}
+
 func TestGetGame(t *testing.T) {
 	uuidUser := uuid.New()
 	uuidGame := uuid.New()
@@ -304,6 +476,18 @@ func TestGetGame(t *testing.T) {
 					return Game{
 						UUIDPlayerFirst:  uuidGame,
 						UUIDPlayerSecond: &(secondUser),
+					}, nil
+				}
+			},
+			expectedGame: Game{},
+			expectedErr:  ErrDoesntHaveSuchUser.Error(),
+		},
+		{
+			testName: "ErrDoesntHaveSuchUser, UUIDPlayerSecond == nil",
+			setupMock: func(m *mockGameRepository) {
+				m.GetFunc = func(ctx context.Context, uuid uuid.UUID) (Game, error) {
+					return Game{
+						UUIDPlayerFirst: uuidGame,
 					}, nil
 				}
 			},

@@ -214,6 +214,173 @@ func TestUpdateGames(t *testing.T) {
 	}
 }
 
+func TestUpdateSecondPlayerInGames(t *testing.T) {
+	db, err := NewDBPool("postgres://postgres:12345@localhost:5432/tic_tac_toe")
+	if err != nil {
+		t.Fatalf("Failed to connect to the database: %v", err)
+	}
+	defer db.pool.Close()
+
+	validUserFirst := userEntity{
+		UUID:         uuid.New(),
+		Login:        rand.Text(),
+		PasswordHash: rand.Text(),
+		CreateAt:     time.Now(),
+	}
+
+	validUserSecond := userEntity{
+		UUID:         uuid.New(),
+		Login:        rand.Text(),
+		PasswordHash: rand.Text(),
+		CreateAt:     time.Now(),
+	}
+
+	validGame := gameEntity{
+		UUID:         uuid.New(),
+		Board:        "0, 0, 0, 0, 0, 0, 0, 0, 0",
+		WithComputer: false,
+		State:        domain.StateWaitUsers,
+
+		UUIDPlayerFirst: validUserFirst.UUID,
+		UpdatedAt:       time.Now(),
+	}
+
+	ctxSetup, cancelSetup := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancelSetup()
+
+	err = db.insertIntoUsers(ctxSetup, validUserFirst)
+	if err != nil {
+		t.Fatalf("Error to insert: %v", err)
+	}
+
+	err = db.insertIntoUsers(ctxSetup, validUserSecond)
+	if err != nil {
+		t.Fatalf("Error to insert: %v", err)
+	}
+
+	err = db.insertIntoGames(ctxSetup, validGame)
+	if err != nil {
+		t.Fatalf("Error to insert: %v", err)
+	}
+
+	testCases := []struct {
+		name          string
+		game          gameEntity
+		expectedError string
+		cancelCtx     bool
+	}{
+		{
+			name: "OK",
+			game: gameEntity{
+				UUID:         validGame.UUID,
+				Board:        "0, 0, 0, 0, 0, 0, 0, 0, 0",
+				WithComputer: false,
+				State:        domain.StateNextMove,
+				NextPlayer:   &validUserFirst.UUID,
+
+				UUIDPlayerFirst:  validUserFirst.UUID,
+				UUIDPlayerSecond: &validUserSecond.UUID,
+
+				UpdatedAt: time.Now(),
+			},
+			expectedError: "",
+		},
+		{
+			name: "Error to update",
+			game: gameEntity{
+				UUID:         validGame.UUID,
+				Board:        "0, 0, 0, 0, 0, 0, 0, 0, 0",
+				WithComputer: false,
+				State:        "teeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeest",
+				NextPlayer:   &validUserFirst.UUID,
+
+				UUIDPlayerFirst:  validUserFirst.UUID,
+				UUIDPlayerSecond: &validUserSecond.UUID,
+				UpdatedAt:        time.Now(),
+			},
+			expectedError: "repository: update user in game ",
+		},
+		{
+			name: "domain.ErrAddUser",
+			game: gameEntity{
+				UUID:         validGame.UUID,
+				Board:        "0, 0, 0, 0, 0, 0, 0, 0, 0",
+				WithComputer: false,
+				State:        domain.StateNextMove,
+				NextPlayer:   &validUserFirst.UUID,
+
+				UUIDPlayerFirst:  validUserFirst.UUID,
+				UUIDPlayerSecond: &validUserSecond.UUID,
+
+				UpdatedAt: time.Now(),
+			},
+			expectedError: domain.ErrAddUser.Error(),
+		},
+		{
+			name: "domain.ErrContextCanceled, repository: update user in game",
+			game: gameEntity{
+				UUID:         validGame.UUID,
+				Board:        "0, 0, 0, 0, 0, 0, 0, 0, 0",
+				WithComputer: false,
+				State:        domain.StateNextMove,
+				NextPlayer:   &validUserFirst.UUID,
+
+				UUIDPlayerFirst:  validUserFirst.UUID,
+				UUIDPlayerSecond: &validUserSecond.UUID,
+
+				UpdatedAt: time.Now(),
+			},
+			expectedError: "repository: update user in game",
+			cancelCtx:     true,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			if tc.cancelCtx {
+				cancel()
+			} else {
+				defer cancel()
+			}
+
+			err := db.updateSecondPlayerInGames(ctx, tc.game)
+
+			if tc.expectedError == "" {
+				if err != nil {
+					t.Fatalf("Expected no error, but got: %v", err)
+				}
+
+				newGame, err := db.selectFromGames(ctx, tc.game.UUID)
+				if err != nil {
+					t.Fatalf("Failed to retrieve game after insert: %v", err)
+				}
+
+				if newGame.State != tc.game.State {
+					t.Errorf("NextPlayer: got %s, want %s", newGame.State, tc.game.State)
+				}
+
+				if *newGame.NextPlayer != *tc.game.NextPlayer {
+					t.Errorf("NextPlayer: got %v, want %v", newGame.NextPlayer, tc.game.NextPlayer)
+				}
+
+				if *newGame.UUIDPlayerSecond != *tc.game.UUIDPlayerSecond {
+					t.Errorf("NextPlayer: got %v, want %v", newGame.UUIDPlayerSecond, tc.game.UUIDPlayerSecond)
+				}
+			} else {
+				if err == nil {
+					t.Fatalf("Expected error containing %q, but got nil", tc.expectedError)
+				}
+
+				if !strings.Contains(strings.ToLower(err.Error()), tc.expectedError) {
+					t.Errorf("Expected error to contain %q, but got: %v", tc.expectedError, err)
+				}
+			}
+
+		})
+	}
+}
+
 func TestSelectAvaibleGamesFromGames(t *testing.T) {
 	db, err := NewDBPool("postgres://postgres:12345@localhost:5432/tic_tac_toe")
 	if err != nil {

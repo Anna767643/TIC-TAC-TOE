@@ -46,6 +46,15 @@ type Game struct {
 	UpdatedAt time.Time
 }
 
+func (g Game) HasPlayer(id uuid.UUID) bool {
+	isFirst := g.UUIDPlayerFirst == id
+	isSecond := g.UUIDPlayerSecond != nil && *g.UUIDPlayerSecond == id
+	if !isFirst && !isSecond {
+		return false
+	}
+	return true
+}
+
 // SignUpRequest - модель для регистрации и авторизации
 type SignUpRequest struct {
 	Login    string `json:"login"`

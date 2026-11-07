@@ -65,15 +65,15 @@ ErrLoginOrPasswordIncorrect
 */
 func (u *userService) LogIn(ctx context.Context, signUpRequest SignUpRequest) (uuid.UUID, error) {
 	if err := ctx.Err(); err != nil {
-		if err == ErrUserNotFound {
-			return uuid.UUID{}, ErrContextCanceled
-		}
-		return uuid.UUID{}, err
+		return uuid.UUID{}, ErrContextCanceled
 	}
 
 	user, err := u.repo.Get(ctx, signUpRequest.Login, uuid.UUID{})
 	if err != nil {
-		return uuid.UUID{}, ErrLoginOrPasswordIncorrect
+		if err == ErrUserNotFound {
+			return uuid.UUID{}, ErrLoginOrPasswordIncorrect
+		}
+		return uuid.UUID{}, err
 	}
 
 	if err := bcrypt.CompareHashAndPassword([]byte(user.PasswordHash), []byte(signUpRequest.Password)); err != nil {

@@ -22,11 +22,6 @@ func (s *gameService) CreateNewGame(ctx context.Context, withComputer bool, uuid
 		return Game{}, ErrContextCanceled
 	}
 
-	state := StateNextMove
-	if !withComputer {
-		state = StateWaitUsers
-	}
-
 	game := Game{
 		UUID: uuid.New(),
 		Board: Board{
@@ -35,10 +30,15 @@ func (s *gameService) CreateNewGame(ctx context.Context, withComputer bool, uuid
 			{0, 0, 0},
 		},
 		WithComputer:    withComputer,
-		State:           state,
+		State:           StateWaitUsers,
 		UUIDPlayerFirst: uuidUser,
 
 		UpdatedAt: time.Now(),
+	}
+
+	if withComputer {
+		game.State = StateNextMove
+		game.NextPlayer = &uuidUser
 	}
 
 	newGame, err := s.repo.SaveNewGame(ctx, game)
@@ -74,32 +74,18 @@ JoinUser - присоединяет пользователя к игре
 В случае успеха возвращает измененную игру
 Ошибки:
 ErrContextCanceled
-ErrGameNotFound
 "repository: select game %s: %w"
 ErrAddUser
-
-----Тут гонка возникает!!!!!!!!!!!!!!!
-игра не найдена, к данной игре нельзя добавить пользователя,
-context.Canceled, или иная неописанная ошибка
+"repository: update user in game %s: %w"
 */
 func (s *gameService) JoinUser(ctx context.Context, uuidUser uuid.UUID, uuidGame uuid.UUID) (Game, error) {
 	if err := ctx.Err(); err != nil {
 		return Game{}, ErrContextCanceled
 	}
-	// -------------!!!!!!!!!!!!!!!!!!!!!!!!-----------------
-	// Тут пишем одну функцию JoinUser,
-	// внутри запроса проверяем все необходимые данные
+
 	game, err := s.repo.Get(ctx, uuidGame)
 	if err != nil {
 		return Game{}, err
-	}
-
-	// ErrAddUser
-	if game.State != StateWaitUsers ||
-		game.UUIDPlayerSecond != nil ||
-		game.WithComputer ||
-		game.UUIDPlayerFirst == uuidUser {
-		return Game{}, ErrAddUser
 	}
 
 	game.State = StateNextMove
@@ -107,7 +93,7 @@ func (s *gameService) JoinUser(ctx context.Context, uuidUser uuid.UUID, uuidGame
 	game.UUIDPlayerSecond = &uuidUser
 	game.UpdatedAt = time.Now()
 
-	if err := s.repo.Save(ctx, game); err != nil {
+	if err := s.repo.JoinSecondUser(ctx, game); err != nil {
 		return Game{}, err
 	}
 
@@ -137,7 +123,7 @@ func (s *gameService) GetGame(ctx context.Context, uuidGame uuid.UUID, uuidUser 
 		return Game{}, err
 	}
 
-	if game.UUIDPlayerFirst != uuidUser && *game.UUIDPlayerSecond != uuidUser {
+	if !game.HasPlayer(uuidUser) {
 		return Game{}, ErrDoesntHaveSuchUser
 	}
 
