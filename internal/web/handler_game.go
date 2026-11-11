@@ -43,7 +43,7 @@ handleCreateGame - создание новой игры с пользовате�
 Method POST /games
 JSON в теле запроса:
 {
-"withComputer": true/false
+"with_computer": true/false
 }
 
 Ответ:
@@ -247,22 +247,9 @@ func (h *GameHandler) handlePatchCurrentGame(w http.ResponseWriter, r *http.Requ
 		return
 	}
 
-	switch game.State {
-	case domain.StateDraw:
-		writeJSON(w, http.StatusOK, map[string]string{
-			"message": "GAME OVER",
-			"winner":  "DRAW",
-		})
-	case domain.StateWin:
-		writeJSON(w, http.StatusOK, map[string]string{
-			"message": "GAME OVER",
-			"winner":  game.Winner.String(),
-		})
-	default:
-		gameDTO := toGameDTO(game)
-		writeJSON(w, http.StatusOK, gameDTO)
+	gameDTO := toGameDTO(game)
+	writeJSON(w, http.StatusOK, gameDTO)
 
-	}
 }
 
 /*

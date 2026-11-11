@@ -34,6 +34,8 @@ func (m *mockUserService) GetUserInfo(ctx context.Context, uuidUser uuid.UUID) (
 }
 
 func TestHandleUsersCreate(t *testing.T) {
+	uuidUser := uuid.New()
+	createAt := time.Now().UTC()
 
 	type usersCreateRequest struct {
 		Login    string
@@ -57,14 +59,14 @@ func TestHandleUsersCreate(t *testing.T) {
 				us.RegisterFunc = func(ctx context.Context, signUpRequest domain.SignUpRequest) (domain.User, error) {
 					return domain.User{
 						ID:       2,
-						UUID:     uuid.New(),
+						UUID:     uuidUser,
 						Login:    "anna",
-						CreateAt: time.Now(),
+						CreateAt: createAt,
 					}, nil
 				}
 			},
 			expectedCode:   http.StatusCreated,
-			expectedInBody: "",
+			expectedInBody: fmt.Sprintf(`{"id":2,"uuid":"%s","login":"anna","createAt":"%s"}`, uuidUser.String(), createAt.Format(time.RFC3339)),
 		},
 		{
 			name:        "Wrong request body",
@@ -242,6 +244,125 @@ func TestHandleSessionCreate(t *testing.T) {
 			rec := httptest.NewRecorder()
 
 			handler.handleSessionCreate(rec, req)
+
+			if rec.Code != tc.expectedCode {
+				t.Errorf("Wait HTTP status %d, get %d. Body request: %s", tc.expectedCode, rec.Code, rec.Body.String())
+			}
+
+			if tc.expectedInBody != "" && !bytes.Contains(rec.Body.Bytes(), []byte(tc.expectedInBody)) {
+				t.Errorf("Wait body response %q, get: %s", tc.expectedInBody, rec.Body.String())
+			}
+		})
+	}
+}
+
+func TestHandleGetUserInfo(t *testing.T) {
+	uuidUser := uuid.New()
+	createAt := time.Now().UTC()
+
+	testCases := []struct {
+		name           string
+		login          string
+		password       string
+		setupmocks     func(*mockUserService)
+		userUUID       string
+		expectedCode   int
+		expectedInBody string
+	}{
+		{
+			name:     "OK",
+			login:    "anna",
+			password: "12345",
+			setupmocks: func(us *mockUserService) {
+				us.GetUserInfoFunc = func(ctx context.Context, uuidUser uuid.UUID) (domain.User, error) {
+					return domain.User{
+						ID:           2,
+						UUID:         uuidUser,
+						Login:        "anna",
+						PasswordHash: "",
+						CreateAt:     createAt,
+					}, nil
+				}
+			},
+			userUUID:       uuidUser.String(),
+			expectedCode:   http.StatusOK,
+			expectedInBody: fmt.Sprintf(`{"id":2,"uuid":"%s","login":"anna","createAt":"%s"}`, uuidUser.String(), createAt.Format(time.RFC3339)),
+		},
+		{
+			name:     "wrong uuid",
+			login:    "anna",
+			password: "12345",
+			setupmocks: func(us *mockUserService) {
+				us.GetUserInfoFunc = func(ctx context.Context, uuidUser uuid.UUID) (domain.User, error) {
+					return domain.User{
+						ID:           2,
+						UUID:         uuidUser,
+						Login:        "anna",
+						PasswordHash: "",
+						CreateAt:     createAt,
+					}, nil
+				}
+			},
+			userUUID:       "dshfauwe834",
+			expectedCode:   http.StatusBadRequest,
+			expectedInBody: "invalid UUID",
+		},
+		{
+			name:     "Context canceled",
+			login:    "anna",
+			password: "12345",
+			setupmocks: func(us *mockUserService) {
+				us.GetUserInfoFunc = func(ctx context.Context, uuidUser uuid.UUID) (domain.User, error) {
+					return domain.User{}, domain.ErrContextCanceled
+				}
+			},
+			userUUID:       uuidUser.String(),
+			expectedCode:   http.StatusInternalServerError,
+			expectedInBody: `"context canceled"`,
+		},
+		{
+			name:     "user not found",
+			login:    "anna",
+			password: "12345",
+			setupmocks: func(us *mockUserService) {
+				us.GetUserInfoFunc = func(ctx context.Context, uuidUser uuid.UUID) (domain.User, error) {
+					return domain.User{}, domain.ErrUserNotFound
+				}
+			},
+			userUUID:       uuidUser.String(),
+			expectedCode:   http.StatusNotFound,
+			expectedInBody: `"user not found"`,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			// Настраиваем моки
+			mockUS := &mockUserService{}
+			tc.setupmocks(mockUS)
+
+			// Хэндлер с нашими моками
+			handler := NewUserHandler(mockUS)
+
+			mux := http.NewServeMux()
+			mux.HandleFunc("/users/{uuid}", handler.handleGetUserInfo)
+
+			// Создаем запрос
+			reqStr := fmt.Sprintf("/users/%s", tc.userUUID)
+
+			req := httptest.NewRequest(http.MethodGet, reqStr, nil)
+			if tc.login != "" && tc.password != "" {
+				req.SetBasicAuth(tc.login, tc.password)
+			}
+
+			newCtx := context.WithValue(context.Background(), userUUIDKey, uuidUser)
+			req = req.WithContext(newCtx)
+
+			// Перехватываем ответ
+			rec := httptest.NewRecorder()
+
+			mux.ServeHTTP(rec, req)
 
 			if rec.Code != tc.expectedCode {
 				t.Errorf("Wait HTTP status %d, get %d. Body request: %s", tc.expectedCode, rec.Code, rec.Body.String())

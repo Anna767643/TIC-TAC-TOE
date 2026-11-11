@@ -1,0 +1,29 @@
+info:
+  name: Обновление текущей игры (выполнение хода) copy
+  type: http
+  seq: 7
+
+http:
+  method: PATCH
+  url: "{{base_url}}/games/da9c63f8-6fda-461f-9c4e-12cbd4b2fe91"
+  body:
+    type: json
+    data: |-
+      {
+        "board": [
+            [1,0,0],
+            [0,0,0],
+            [0,0,0]
+          ]
+      }
+  auth:
+    type: basic
+    username: anna
+    password: "12345"
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+  forwardAuthorizationHeader: false

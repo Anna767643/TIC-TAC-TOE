@@ -1,0 +1,19 @@
+info:
+  name: Присоединение к игре
+  type: http
+  seq: 5
+
+http:
+  method: PATCH
+  url: "{{base_url}}/games/da9c63f8-6fda-461f-9c4e-12cbd4b2fe91/users"
+  auth:
+    type: basic
+    username: ana
+    password: "12345"
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+  forwardAuthorizationHeader: false
